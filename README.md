@@ -1,36 +1,36 @@
 # 🎵 FluxAudio - Cloud Music Player
 
-FluxAudio is a modern, web-based music streaming application built with React/Vite. It streams your personal music library directly from **Cloudflare R2** via **Cloudflare Workers**, hosted on **Firebase Hosting**.
+FluxAudioは、ReactとViteで構築されたモダンなWebベースの音楽ストリーミングアプリケーションです。**Cloudflare R2** に保存された個人の音楽ライブラリを、**Cloudflare Workers** を介してストリーミング再生し、Webアプリは **Firebase Hosting** 上で動作します。
 
 ![FluxAudio Screenshot](public/splash_bg.jpg)
-*(Replace this with a real screenshot of your app)*
+*(ここに実際のアプリのスクリーンショットを配置してください)*
 
-## ✨ Features
+## ✨ 主な機能
 
-- **☁️ Cloud Streaming**: Stream music directly from Cloudflare R2 (Serverless).
-- **📱 PWA Ready**: Installable on Android/iOS/Desktop.
-- **📥 Offline Mode**: Cache songs locally for offline playback.
-- **🎨 Modern UI**: Beautiful, responsive interface with dark mode support.
-- **� Firebase Integration**: User authentication and persistent playlists/favorites.
+- **☁️ クラウドストリーミング**: Cloudflare R2からサーバーレスで楽曲を直接ストリーミング再生。
+- **📱 PWA対応**: Android、iOS、PCにアプリとしてインストール可能。
+- **📥 オフラインモード**: 楽曲をローカルにキャッシュし、オフラインでも再生可能。
+- **🎨 モダンUI**: ダークモードに対応した、美しくレスポンシブなインターフェース。
+- **🔥 Firebase連携**: ユーザー認証、プレイリストや「お気に入り」のクラウド同期。
 
-## 🏗️ Architecture
+## 🏗️ アーキテクチャ
 
-This project uses a serverless architecture to keep costs low and performance high.
+このプロジェクトは、低コストかつ高性能なサーバーレスアーキテクチャを採用しています。
 
-- **Storage**: Cloudflare R2 (stores .mp3, .lrc, images)
-- **API**: Cloudflare Workers (serves file list and handles secure access)
-- **Frontend**: React + Vite (hosted on Firebase Hosting)
-- **Database**: Firebase Firestore (User data, playlists)
+- **ストレージ**: Cloudflare R2 (MP3, LRC歌詞ファイル, 画像などを保存)
+- **API**: Cloudflare Workers (ファイルリストの取得とセキュアなアクセス制御)
+- **フロントエンド**: React + Vite (Firebase Hostingでホスティング)
+- **データベース**: Firebase Firestore (ユーザーデータ、プレイリスト管理)
 
-## 🚀 Getting Started
+## 🚀 始め方
 
-### Prerequisites
+### 前提条件
 
-- Node.js (v18+)
-- Cloudflare Account (R2 & Workers)
-- Firebase Account
+- Node.js (v18以上)
+- Cloudflare アカウント (R2 & Workers)
+- Firebase アカウント
 
-### 1. Clone the Repository
+### 1. リポジトリのクローン
 
 ```bash
 git clone https://github.com/TatsuyaM2667/FluxAudio-MusicApp.git
@@ -38,69 +38,69 @@ cd FluxAudio-MusicApp
 npm install
 ```
 
-### 2. Environment Setup
+### 2. 環境設定
 
-Create a `.env` file in the root directory based on `.env.example`:
+`.env.example` をコピーして `.env` ファイルを作成します：
 
 ```bash
 cp .env.example .env
 ```
 
-Fill in your API keys:
+ご自身のAPIキーなどを記入してください：
 
 ```env
-# Cloudflare Workers URL (Your API)
+# Cloudflare Workers URL (APIエンドポイント)
 VITE_API_BASE=https://your-worker.your-subdomain.workers.dev
 
-# Firebase Configuration
+# Firebase 設定
 VITE_FIREBASE_API_KEY=your-api-key
 VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=your-project-id
-# ... other firebase config
+# ... その他必要なキー
 ```
 
-### 3. Run Locally
+### 3. ローカル実行
 
 ```bash
 npm run dev
 ```
 
-## � Deployment
+## 📦 デプロイ
 
-### Deploy Frontend (Firebase)
+### フロントエンド (Firebase Hosting)
 
 ```bash
 npm run build
 firebase deploy --only hosting
 ```
 
-### Backend Setup (Cloudflare Workers)
+### バックエンド設定 (Cloudflare Workers)
 
-You need to deploy a Worker that serves the file list from your R2 bucket.
-*(Note: Worker code is not included in this public repo for security. You need a simple Worker that lists R2 bucket contents.)*
+R2バケット内のファイルリストをJSON形式で返すWorkerをデプロイする必要があります。
+*(セキュリティの観点から、このパブリックリポジトリにはWorkerのコードやR2アップロード用スクリプトは含まれていません。ご自身の環境に合わせて実装してください。)*
 
-## 📱 Mobile App (Capacitor)
+## 📱 モバイルアプリ化 (Capacitor)
 
-FluxAudio is ready for mobile via Capacitor.
+Capacitorを使用して、簡単にモバイルアプリ（APK/IPA）をビルドできます。
 
 ```bash
-# Sync assets
+# ビルドとアセット同期
 npm run build
 npx cap sync
 
-# Open Android Studio
+# Android Studioを開く
 npx cap open android
 ```
 
-## � Security Note
+## 🔒 セキュリティについて
 
-This repository does **not** contain:
-- Use of hardcoded API keys
-- SSL Certificates
-- Python management scripts (for R2 uploading)
+この公開リポジトリには、以下の機密情報は**含まれていません**：
+- ハードコードされたAPIキーやシークレット
+- SSL証明書や秘密鍵
+- 管理用Pythonスクリプト（R2へのアップロードツールなど）
 
-Please handle your secrets securely.
+クローンして利用する際は、ご自身の所有するキーを `.env` で管理し、機密情報をコミットしないようご注意ください。
 
-## 📄 License
+## 📄 ライセンス
 
-This project is licensed under the [MIT License](LICENSE).
+このプロジェクトは [MIT License](LICENSE) の下で公開されています。
