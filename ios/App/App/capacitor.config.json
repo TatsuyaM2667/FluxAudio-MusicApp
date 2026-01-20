@@ -1,0 +1,27 @@
+{
+	"appId": "com.esp32.musicweb",
+	"appName": "FluxAudio",
+	"webDir": "dist",
+	"android": {
+		"allowMixedContent": true,
+		"backgroundColor": "#000000"
+	},
+	"server": {
+		"androidScheme": "https",
+		"cleartext": true
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 2500,
+			"launchAutoHide": true,
+			"launchFadeOutDuration": 300,
+			"backgroundColor": "#000000",
+			"androidSplashResourceName": "splash",
+			"androidScaleType": "CENTER_CROP",
+			"showSpinner": false,
+			"splashFullScreen": true,
+			"splashImmersive": true
+		}
+	},
+	"packageClassList": []
+}

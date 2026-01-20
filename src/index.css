@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+body {
+  font-family: 'Inter', sans-serif;
+  @apply bg-white text-gray-900 transition-colors duration-300;
+}
+
+.dark body {
+  @apply bg-black text-white;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/20 rounded-full;
+}
+
+:root {
+  --progress-color: #000000;
+}
+
+.dark {
+  --progress-color: #ffffff;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-white/40;
+}

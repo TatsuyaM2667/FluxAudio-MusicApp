@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
+        <!-- 起動時の背景色を黒にする -->
+        <item name="android:windowSplashScreenBackground">#000000</item>
+        
+        <!-- アプリアイコンの設定（背景色を黒に合わせて一体化させる） -->
+        <item name="android:windowSplashScreenIconBackgroundColor">#000000</item>
+        
+        <!-- 必要に応じてアイコンを指定 -->
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="android:windowBackground">@drawable/splash</item>
+    </style>
+</resources>
