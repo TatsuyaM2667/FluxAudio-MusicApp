@@ -65,7 +65,7 @@ export function FullPlayer({
     const [bgColor, setBgColor] = useState<string>("#1a1a1a");
     const [showInfo, setShowInfo] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
-    const [lyricsStyle, setLyricsStyle] = useState<'default' | 'handwriting'>('default');
+    const [lyricsStyle, setLyricsStyle] = useState<'default' | 'handwriting' | 'typing'>('default');
 
     // View Mode: 'art', 'lyrics', 'queue', 'video'
     const [viewMode, setViewMode] = useState<'art' | 'lyrics' | 'queue' | 'video'>('art');
@@ -345,6 +345,7 @@ export function FullPlayer({
                                         <div className="absolute top-0 right-6 flex gap-2 p-2 bg-black/20 rounded-b-lg z-20">
                                             <button onClick={() => setLyricsStyle('default')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'default' ? 'bg-white/30' : 'bg-white/10'}`}>Default</button>
                                             <button onClick={() => setLyricsStyle('handwriting')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'handwriting' ? 'bg-white/30' : 'bg-white/10'}`}>Handwriting</button>
+                                            <button onClick={() => setLyricsStyle('typing')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'typing' ? 'bg-white/30' : 'bg-white/10'}`}>Typing</button>
                                         </div>
                                         <LyricsView rawLrc={rawLrc} currentTime={currentTime} scrollable={true} onLineClick={onTimeChange} style={lyricsStyle} />
                                     </>
@@ -608,6 +609,7 @@ export function FullPlayer({
                                     <div className="absolute top-8 right-40 flex gap-2 p-2 bg-black/20 rounded-lg z-20">
                                         <button onClick={() => setLyricsStyle('default')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'default' ? 'bg-white/30' : 'bg-white/10'}`}>Default</button>
                                         <button onClick={() => setLyricsStyle('handwriting')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'handwriting' ? 'bg-white/30' : 'bg-white/10'}`}>Handwriting</button>
+                                        <button onClick={() => setLyricsStyle('typing')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'typing' ? 'bg-white/30' : 'bg-white/10'}`}>Typing</button>
                                     </div>
                                     <LyricsView rawLrc={rawLrc} currentTime={currentTime} scrollable={true} onLineClick={onTimeChange} style={lyricsStyle} />
                                 </>

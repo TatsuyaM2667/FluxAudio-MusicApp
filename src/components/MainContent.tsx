@@ -171,7 +171,7 @@ export function MainContent({
 
     // Default scrollable content view
     return (
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-32 md:pb-32 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-52 md:pb-24 custom-scrollbar">
             <div className="mt-4 mb-8">
                 <div className="flex flex-col gap-4 mb-6">
                     <div className="flex items-center gap-4">

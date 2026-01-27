@@ -7,7 +7,7 @@ type MobileNavProps = {
 
 export function MobileNav({ view, onViewChange }: MobileNavProps) {
     return (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-lg border-t border-white/10 z-50 flex justify-around items-center h-20 pb-safe android-safe-bottom">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-lg border-t border-white/10 z-50 flex justify-around items-center min-h-20 h-auto pb-safe android-safe-bottom">
             <button
                 onClick={() => onViewChange('home')}
                 className={`flex flex-col items-center justify-center gap-1 w-full h-full py-1 ${view === 'home' ? 'text-white' : 'text-gray-400 hover:text-white'}`}

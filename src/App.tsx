@@ -152,12 +152,12 @@ function App() {
   } = useAudioPlayer(songs);
 
   // Audio Src Resolution
-  const [audioSrc, setAudioSrc] = useState<string | undefined>(undefined);
+  const [audioSrc, setAudioSrc] = useState<{ url: string | undefined, path: string | null }>({ url: undefined, path: null });
 
   useEffect(() => {
     const resolveSrc = async () => {
       if (!current) {
-        setAudioSrc(undefined);
+        setAudioSrc({ url: undefined, path: null });
         return;
       }
 
@@ -174,7 +174,7 @@ function App() {
             const localUrl = await downloadService.getOfflineUrl(current.path);
             if (localUrl) {
               console.log('[App resolveSrc] Using local file for:', current.tags?.title);
-              setAudioSrc(localUrl);
+              setAudioSrc({ url: localUrl, path: current.path });
               return;
             }
           }
@@ -186,13 +186,16 @@ function App() {
       // If offline and song is not downloaded, can't play
       if (isOffline) {
         console.warn('[App resolveSrc] Offline and song not downloaded:', current.tags?.title);
-        setAudioSrc(undefined);
+        setAudioSrc({ url: undefined, path: current.path });
         return;
       }
 
       // Stream from network
       console.log('[App resolveSrc] Streaming from network:', current.tags?.title);
-      setAudioSrc(current.path.startsWith('http') ? current.path : `${API_BASE}${current.path}`);
+      setAudioSrc({
+        url: current.path.startsWith('http') ? current.path : `${API_BASE}${current.path}`,
+        path: current.path
+      });
     };
     resolveSrc();
   }, [current, isOffline]);
@@ -312,17 +315,20 @@ function App() {
 
     if (current) {
       if (isPlaying) {
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.log("Playback prevented:", error);
-          });
+        // Only play if the audioSrc matches the current song
+        if (audioSrc.path === current.path && audioSrc.url) {
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(error => {
+              console.log("Playback prevented:", error);
+            });
+          }
         }
       } else {
         audio.pause();
       }
     }
-  }, [current, isPlaying, audioRef]);
+  }, [current, isPlaying, audioSrc, audioRef]);
 
   // Delete Song Handler
   const handleDeleteSong = async (song: typeof songs[0]) => {
@@ -365,7 +371,7 @@ function App() {
       <audio
         ref={audioRef}
         muted={isVideoMode}
-        src={audioSrc}
+        src={audioSrc.url}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={() => {
