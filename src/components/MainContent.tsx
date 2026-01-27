@@ -25,7 +25,7 @@ interface MainContentProps {
     loading: boolean;
     displaySongs: SongMeta[];
 
-    onPlaySong: (song: SongMeta) => void;
+    onPlaySong: (song: SongMeta, context?: SongMeta[]) => void;
     onArtistClick: (artist: string) => void;
     onAlbumClick: (artist: string, album: string) => void;
     onPlaylistClick: (id: string) => void;
@@ -153,7 +153,10 @@ export function MainContent({
                     playlist={playlist}
                     songs={songs}
                     onBack={() => setView('library')}
-                    onPlaySong={onPlaySong}
+                    onPlaySong={(s, c) => {
+                        console.log('[MainContent] Passing play request:', s.tags?.title, 'Context len:', c?.length);
+                        onPlaySong(s, c);
+                    }}
                     getAlbumArt={getAlbumArt}
                     onArtistClick={onArtistClick}
                     favorites={favorites}
@@ -314,29 +317,37 @@ export function MainContent({
 
                             {/* Song Cards */}
                             {/* Song Cards */}
-                            {(view === 'new_arrivals'
-                                ? (isOffline
-                                    ? songs.filter(s => isDownloaded(s.path)).sort((a, b) => (b.date || 0) - (a.date || 0)).slice(0, 10)
-                                    : [...songs].sort((a, b) => (b.date || 0) - (a.date || 0)).slice(0, 10))
-                                : (isOffline && view === 'home'
-                                    ? displaySongs.filter(s => isDownloaded(s.path))
-                                    : displaySongs)
-                            ).map((song) => (
-                                <SongCard
-                                    key={song.path}
-                                    song={song}
-                                    isCurrent={current?.path === song.path}
-                                    isPlaying={isPlaying}
-                                    isFavorite={favorites.includes(song.path)}
-                                    onToggleFavorite={(e) => { e.stopPropagation(); onToggleFavorite(song.path); }}
-                                    onClick={() => onPlaySong(song)}
-                                    onPlayNext={() => onPlayNext(song)}
-                                    onAddToPlaylist={() => onAddToPlaylist(song)}
-                                    onDelete={onDelete}
-                                    getAlbumArt={getAlbumArt}
-                                    onArtistClick={onArtistClick}
-                                />
-                            ))}
+                            {(() => {
+                                // Calculate the actual song list being displayed for proper context
+                                const songsToDisplay = view === 'new_arrivals'
+                                    ? (isOffline
+                                        ? songs.filter(s => isDownloaded(s.path)).sort((a, b) => (b.date || 0) - (a.date || 0)).slice(0, 10)
+                                        : [...songs].sort((a, b) => (b.date || 0) - (a.date || 0)).slice(0, 10))
+                                    : (isOffline && view === 'home'
+                                        ? displaySongs.filter(s => isDownloaded(s.path))
+                                        : displaySongs);
+
+                                return songsToDisplay.map((song) => (
+                                    <SongCard
+                                        key={song.path}
+                                        song={song}
+                                        isCurrent={current?.path === song.path}
+                                        isPlaying={isPlaying}
+                                        isFavorite={favorites.includes(song.path)}
+                                        onToggleFavorite={(e) => { e.stopPropagation(); onToggleFavorite(song.path); }}
+                                        onClick={() => {
+                                            // Pass the displayed songs as context for proper playlist playback
+                                            console.log('[MainContent] Playing song with context:', view, songsToDisplay.length, 'songs');
+                                            onPlaySong(song, songsToDisplay);
+                                        }}
+                                        onPlayNext={() => onPlayNext(song)}
+                                        onAddToPlaylist={() => onAddToPlaylist(song)}
+                                        onDelete={onDelete}
+                                        getAlbumArt={getAlbumArt}
+                                        onArtistClick={onArtistClick}
+                                    />
+                                ));
+                            })()}
                         </div>
                     </>
                 )}

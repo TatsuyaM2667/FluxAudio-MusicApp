@@ -24,8 +24,8 @@ export function Player({
   return (
     <div
       onClick={onOpenFullPlayer}
-      // Added 'bottom-16 md:bottom-0' to sit above MobileNav on mobile, at bottom on desktop
-      className="fixed bottom-16 md:bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl border-t border-gray-200 dark:border-white/5 pb-[env(safe-area-inset-bottom)] cursor-pointer hover:bg-gray-100/90 dark:hover:bg-[#2c2c2e]/95 transition-colors group shadow-2xl"
+      // Added 'bottom-20 md:bottom-0' to sit above MobileNav on mobile (h-20), at bottom on desktop
+      className="fixed bottom-20 md:bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#1c1c1e]/95 backdrop-blur-xl border-t border-gray-200 dark:border-white/5 cursor-pointer hover:bg-gray-100/90 dark:hover:bg-[#2c2c2e]/95 transition-colors group shadow-2xl"
     >
       <div className="flex items-center justify-between px-4 py-3 h-16 max-w-screen-2xl mx-auto">
 

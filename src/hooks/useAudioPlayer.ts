@@ -17,6 +17,7 @@ export function useAudioPlayer(songs: SongMeta[]) {
     const [shuffledSongs, setShuffledSongs] = useState<SongMeta[]>([]);
     const [nextUp, setNextUp] = useState<SongMeta[]>([]);
     const [history, setHistory] = useState<SongMeta[]>([]); // Session history
+    const [playlistContext, setPlaylistContext] = useState<SongMeta[] | null>(null); // Playlist context for ordered playback
 
     const audioRef = useRef<HTMLAudioElement>(null);
     const songsRef = useRef(songs);
@@ -25,6 +26,8 @@ export function useAudioPlayer(songs: SongMeta[]) {
     const repeatModeRef = useRef(repeatMode);
     const nextUpRef = useRef(nextUp);
     const isPlayingRef = useRef(isPlaying);
+    const playlistContextRef = useRef(playlistContext);
+    const shuffledSongsRef = useRef(shuffledSongs);
 
     // Sync refs with state
     useEffect(() => { songsRef.current = songs; }, [songs]);
@@ -33,6 +36,8 @@ export function useAudioPlayer(songs: SongMeta[]) {
     useEffect(() => { repeatModeRef.current = repeatMode; }, [repeatMode]);
     useEffect(() => { nextUpRef.current = nextUp; }, [nextUp]);
     useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+    useEffect(() => { playlistContextRef.current = playlistContext; }, [playlistContext]);
+    useEffect(() => { shuffledSongsRef.current = shuffledSongs; }, [shuffledSongs]);
 
     // Firestore Sync: History
     useEffect(() => {
@@ -74,15 +79,29 @@ export function useAudioPlayer(songs: SongMeta[]) {
     // Update shuffled songs when shuffle mode changes
     useEffect(() => {
         if (isShuffle) {
-            setShuffledSongs([...songs].sort(() => 0.5 - Math.random()));
+            // If we have a context, shuffle that instead of all songs
+            const baseList = playlistContext || songs;
+            setShuffledSongs([...baseList].sort(() => 0.5 - Math.random()));
         } else {
             setShuffledSongs([]);
         }
-    }, [isShuffle, songs.length]);
+    }, [isShuffle, songs.length, playlistContext]); // Added playlistContext dependency
 
-    const handlePlaySong = useCallback((song: SongMeta) => {
+    const handlePlaySong = useCallback((song: SongMeta, context?: SongMeta[]) => {
+        console.log('[handlePlaySong v2] Playing:', song.tags?.title, 'Context:', context?.length || 'none');
         setCurrent(song);
         setIsPlaying(true);
+
+        // Update context if provided, otherwise clear it (return to global context) unless explicitly keeping
+        // Usually clicking a song in a list implies that list is the new context
+        if (context) {
+            console.log('[handlePlaySong] Setting playlist context with', context.length, 'songs');
+            setPlaylistContext(context);
+            // If shuffle is on, we need to reshuffle this new context immediately?
+            // The useEffect will handle it if playlistContext changes
+        } else {
+            setPlaylistContext(null);
+        }
     }, []);
 
     const togglePlay = useCallback((e?: React.MouseEvent) => {
@@ -99,26 +118,37 @@ export function useAudioPlayer(songs: SongMeta[]) {
         if (nextUpRef.current.length > 0) {
             const nextSong = nextUpRef.current[0];
             setNextUp(prev => prev.slice(1));
-            handlePlaySong(nextSong);
+            // Just play the song, don't change context
+            setCurrent(nextSong);
+            setIsPlaying(true);
             return;
         }
 
         const safeSongs = songsRef.current;
         const safeCurrent = currentRef.current;
         const safeShuffle = isShuffleRef.current;
+        const safeContext = playlistContextRef.current; // Get current context
+        const safeShuffledSongs = shuffledSongsRef.current; // Use ref to avoid stale closure
+
+        console.log('[performNext] Context:', safeContext?.length || 'none', 'Shuffle:', safeShuffle, 'ShuffledLen:', safeShuffledSongs?.length);
 
         if (!safeCurrent) return;
-        if (safeSongs.length === 0) {
+
+        // Determine the source list: Context > Global Songs
+        const baseList = safeContext || safeSongs;
+
+        if (baseList.length === 0) {
             console.warn("performNext: No songs available");
             return;
         }
 
-        let targetList = safeShuffle ? shuffledSongs : safeSongs;
-        if (safeShuffle && targetList.length === 0) targetList = safeSongs;
+        // Use shuffled list only if shuffle is on and we have a valid shuffled list
+        let targetList = (safeShuffle && safeShuffledSongs.length > 0) ? safeShuffledSongs : baseList;
 
         const currentIndex = targetList.findIndex(s => s.path === safeCurrent.path);
+        console.log('[performNext] Current index:', currentIndex, 'in list of', targetList.length, 'Playlist tracks:', baseList.map(s => s.tags?.title).slice(0, 5));
 
-        // If current song not found in list, fallback to first song or do nothing
+        // If current song not found in list, fallback to first song
         if (currentIndex === -1) {
             console.warn("performNext: Current song not found in list, playing first song.");
             setCurrent(targetList[0]);
@@ -127,11 +157,11 @@ export function useAudioPlayer(songs: SongMeta[]) {
         }
 
         const nextIndex = (currentIndex + 1) % targetList.length;
-        console.log(`performNext: Switching to index ${nextIndex} / ${targetList.length}`);
+        console.log(`[performNext] Switching to index ${nextIndex} / ${targetList.length}:`, targetList[nextIndex]?.tags?.title);
 
         setCurrent(targetList[nextIndex]);
         setIsPlaying(true);
-    }, [shuffledSongs, handlePlaySong]);
+    }, []); // Remove dependencies since we use refs for everything
 
     // Track consecutive errors to prevent infinite skip loop
     const errorCountRef = useRef(0);
@@ -165,17 +195,21 @@ export function useAudioPlayer(songs: SongMeta[]) {
         const safeSongs = songsRef.current;
         const safeCurrent = currentRef.current;
         const safeShuffle = isShuffleRef.current;
+        const safeContext = playlistContextRef.current;
+        const safeShuffledSongs = shuffledSongsRef.current;
 
         if (!safeCurrent) return;
-        if (safeSongs.length === 0) return;
+
+        const baseList = safeContext || safeSongs;
+        if (baseList.length === 0) return;
 
         if (audioRef.current && audioRef.current.currentTime > 3) {
             audioRef.current.currentTime = 0;
             return;
         }
 
-        let targetList = safeShuffle ? shuffledSongs : safeSongs;
-        if (safeShuffle && targetList.length === 0) targetList = safeSongs;
+        // Use shuffled list only if shuffle is on and we have a valid shuffled list
+        let targetList = (safeShuffle && safeShuffledSongs.length > 0) ? safeShuffledSongs : baseList;
 
         const currentIndex = targetList.findIndex(s => s.path === safeCurrent.path);
 
@@ -188,9 +222,10 @@ export function useAudioPlayer(songs: SongMeta[]) {
         }
 
         const prevIndex = (currentIndex - 1 + targetList.length) % targetList.length;
+        console.log(`[performPrev] Switching to index ${prevIndex} / ${targetList.length}:`, targetList[prevIndex]?.tags?.title);
         setCurrent(targetList[prevIndex]);
         setIsPlaying(true);
-    }, [shuffledSongs]);
+    }, []); // Remove dependencies since we use refs for everything
 
     const handleNext = useCallback((e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
@@ -265,6 +300,7 @@ export function useAudioPlayer(songs: SongMeta[]) {
 
         // Data
         shuffledSongs,
-        history
+        history,
+        playlistContext
     };
 }

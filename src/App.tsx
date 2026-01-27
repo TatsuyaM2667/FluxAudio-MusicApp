@@ -147,7 +147,8 @@ function App() {
     performPrev,
     handleError,
     shuffledSongs,
-    history
+    history,
+    playlistContext
   } = useAudioPlayer(songs);
 
   // Audio Src Resolution
@@ -160,22 +161,37 @@ function App() {
         return;
       }
 
+      // For native platform, prioritize downloaded songs to save mobile data
       if (platform.isNative()) {
-        const isDownloaded = downloadService.isDownloaded(current.path);
-        if (isDownloaded) {
-          const localUrl = await downloadService.getOfflineUrl(current.path);
-          if (localUrl) {
-            setAudioSrc(localUrl);
-            return;
+        try {
+          // Ensure DownloadService is initialized before checking
+          await downloadService.init();
+
+          const isDownloaded = downloadService.isDownloaded(current.path);
+          console.log('[App resolveSrc] Song:', current.tags?.title, 'Downloaded:', isDownloaded);
+
+          if (isDownloaded) {
+            const localUrl = await downloadService.getOfflineUrl(current.path);
+            if (localUrl) {
+              console.log('[App resolveSrc] Using local file for:', current.tags?.title);
+              setAudioSrc(localUrl);
+              return;
+            }
           }
+        } catch (e) {
+          console.warn('[App resolveSrc] Error checking download:', e);
         }
       }
 
+      // If offline and song is not downloaded, can't play
       if (isOffline) {
+        console.warn('[App resolveSrc] Offline and song not downloaded:', current.tags?.title);
         setAudioSrc(undefined);
         return;
       }
 
+      // Stream from network
+      console.log('[App resolveSrc] Streaming from network:', current.tags?.title);
       setAudioSrc(current.path.startsWith('http') ? current.path : `${API_BASE}${current.path}`);
     };
     resolveSrc();
@@ -185,8 +201,12 @@ function App() {
   const displayQueue = useMemo(() => {
     if (!current) return nextUp;
 
-    // Determine which list is active
-    const activeList = isShuffle ? shuffledSongs : songs;
+    // Determine which list is active: playlistContext takes priority, then shuffle, then global songs
+    const baseList = playlistContext || songs;
+    const activeList = isShuffle ? shuffledSongs : baseList;
+
+    console.log('[App v2] displayQueue calc. PlaylistCtx:', playlistContext?.length, 'Shuffle:', isShuffle, 'BaseList:', baseList.length);
+
     if (!activeList || activeList.length === 0) return nextUp;
 
     // Find current position by path to ensure match
@@ -203,7 +223,7 @@ function App() {
     const subsequentSongs = activeList.slice(currentIndex + 1, currentIndex + 51);
 
     return [...nextUp, ...subsequentSongs];
-  }, [current, isShuffle, shuffledSongs, songs, nextUp]);
+  }, [current, isShuffle, shuffledSongs, songs, nextUp, playlistContext]);
 
   const { favorites, toggleFavorite } = useFavorites();
   const { toggleFavoriteArtist, isFavoriteArtist, getFavoriteArtistNames } = useFavoriteArtists();
@@ -333,7 +353,7 @@ function App() {
   const bgImage = current?.tags?.picture ? getAlbumArt(current.tags.picture) : null;
 
   return (
-    <div className="flex h-screen w-full bg-gray-50 dark:bg-black text-black dark:text-white overflow-hidden font-sans select-none relative transition-colors duration-300">
+    <div className="flex h-screen w-full bg-gray-50 dark:bg-black text-black dark:text-white overflow-hidden font-sans select-none relative transition-colors duration-300 safe-area-all">
       {/* Animated Splash Screen */}
       {showSplash && (
         <AnimatedSplash
@@ -366,136 +386,134 @@ function App() {
         </div>
       )}
 
-      {/* Main Layout */}
-      {!showFullPlayer && (
-        <>
-          <Sidebar view={view} onViewChange={setView} />
+      {/* Main Layout - Use CSS visibility instead of unmounting to preserve scroll position */}
+      <div className={`contents ${showFullPlayer ? 'invisible pointer-events-none' : ''}`} style={{ display: showFullPlayer ? 'none' : 'contents' }}>
+        <Sidebar view={view} onViewChange={setView} />
 
-          <main className="flex-1 flex flex-col relative z-10 h-full overflow-hidden">
-            {/* Header */}
-            {view !== 'artist' && view !== 'album' && view !== 'mypage' && !view.startsWith('playlist-') && (
-              <header className="h-16 flex items-center justify-between px-4 md:px-8 z-20 bg-gradient-to-b from-white/90 to-transparent dark:from-black/80 dark:to-transparent sticky top-0 shrink-0">
-                <div className="flex gap-2">
-                  <button onClick={() => setView('home')} className="w-8 h-8 rounded-full bg-black/10 dark:bg-black/50 flex items-center justify-center text-gray-500 dark:text-gray-400 cursor-pointer hover:bg-black/20 dark:hover:text-white transition">
-                    <IconChevronLeft />
-                  </button>
-                </div>
-                <div className="flex items-center gap-4 relative">
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowNotifications(!showNotifications)}
-                      className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition text-gray-600 dark:text-gray-300 relative"
-                    >
-                      {unreadCount > 0 ? <IconBellFilled /> : <IconBell />}
-                      {unreadCount > 0 && (
-                        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-black"></span>
-                      )}
-                    </button>
-
-                    {showNotifications && (
-                      <NotificationDropdown
-                        notifications={notifications}
-                        markAsRead={markAsRead}
-                        markAllAsRead={markAllAsRead}
-                        clearNotifications={clearNotifications}
-                        onClose={() => setShowNotifications(false)}
-                        onPlaySong={(path) => {
-                          const song = songs.find(s => s.path === path);
-                          if (song) handlePlaySong(song);
-                        }}
-                      />
+        <main className="flex-1 flex flex-col relative z-10 h-full overflow-hidden">
+          {/* Header */}
+          {view !== 'artist' && view !== 'album' && view !== 'mypage' && !view.startsWith('playlist-') && (
+            <header className="h-16 flex items-center justify-between px-4 md:px-8 z-20 bg-gradient-to-b from-white/90 to-transparent dark:from-black/80 dark:to-transparent sticky top-0 shrink-0">
+              <div className="flex gap-2">
+                <button onClick={() => setView('home')} className="w-8 h-8 rounded-full bg-black/10 dark:bg-black/50 flex items-center justify-center text-gray-500 dark:text-gray-400 cursor-pointer hover:bg-black/20 dark:hover:text-white transition">
+                  <IconChevronLeft />
+                </button>
+              </div>
+              <div className="flex items-center gap-4 relative">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition text-gray-600 dark:text-gray-300 relative"
+                  >
+                    {unreadCount > 0 ? <IconBellFilled /> : <IconBell />}
+                    {unreadCount > 0 && (
+                      <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-black"></span>
                     )}
-                  </div>
-
-                  <button onClick={toggleTheme} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition">
-                    {theme === 'dark' ? '🌙' : '☀️'}
                   </button>
-                  {user ? (
-                    <div className="relative group">
-                      <button className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm">
-                        {user.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
-                      </button>
-                      <div className="absolute right-0 top-10 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 min-w-[160px] hidden group-hover:block z-50">
-                        <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                          <p className="text-sm font-medium truncate">{user.displayName || 'User'}</p>
-                          <p className="text-xs text-gray-500 truncate">{user.email}</p>
-                        </div>
-                        <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-800">
-                          ログアウト
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setShowAuthPage(true)}
-                      className="px-4 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium rounded-full hover:from-purple-500 hover:to-pink-500 transition"
-                    >
-                      ログイン
-                    </button>
+
+                  {showNotifications && (
+                    <NotificationDropdown
+                      notifications={notifications}
+                      markAsRead={markAsRead}
+                      markAllAsRead={markAllAsRead}
+                      clearNotifications={clearNotifications}
+                      onClose={() => setShowNotifications(false)}
+                      onPlaySong={(path) => {
+                        const song = songs.find(s => s.path === path);
+                        if (song) handlePlaySong(song);
+                      }}
+                    />
                   )}
                 </div>
-              </header>
-            )}
 
-            {/* Auth Page Modal */}
-            {showAuthPage && (
-              <div className="fixed inset-0 z-50">
-                <AuthPage onClose={() => setShowAuthPage(false)} />
+                <button onClick={toggleTheme} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition">
+                  {theme === 'dark' ? '🌙' : '☀️'}
+                </button>
+                {user ? (
+                  <div className="relative group">
+                    <button className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm">
+                      {user.displayName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U'}
+                    </button>
+                    <div className="absolute right-0 top-10 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-2 min-w-[160px] hidden group-hover:block z-50">
+                      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                        <p className="text-sm font-medium truncate">{user.displayName || 'User'}</p>
+                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                      </div>
+                      <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-800">
+                        ログアウト
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowAuthPage(true)}
+                    className="px-4 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-medium rounded-full hover:from-purple-500 hover:to-pink-500 transition"
+                  >
+                    ログイン
+                  </button>
+                )}
               </div>
-            )}
-
-            <MainContent
-              view={view}
-              selectedArtist={selectedArtist}
-              selectedAlbum={selectedAlbum}
-              songs={songs}
-              playlists={playlists}
-              favorites={favorites}
-              searchQuery={searchQuery}
-              loading={songsLoading}
-              displaySongs={displaySongs}
-              current={current}
-              isPlaying={isPlaying}
-              onPlaySong={handlePlaySong}
-              onArtistClick={handleArtistClick}
-              onAlbumClick={handleAlbumClick}
-              onPlaylistClick={(id: string) => setView(`playlist-${id}`)}
-              onToggleFavorite={toggleFavorite}
-              onPlayNext={handlePlayNext}
-              onAddToPlaylist={openPlaylistModal}
-              onDelete={handleDeleteSong}
-              getAlbumArt={getAlbumArt}
-              setView={setView}
-              setSearchQuery={setSearchQuery}
-              setSelectedAlbum={(album: string | null) => {
-                if (selectedArtist && album) {
-                  handleAlbumClick(selectedArtist, album);
-                }
-              }}
-              isFavoriteArtist={isFavoriteArtist}
-              onToggleFavoriteArtist={toggleFavoriteArtist}
-              isFavoriteAlbum={isFavoriteAlbum}
-              onToggleFavoriteAlbum={toggleFavoriteAlbum}
-              favoriteArtists={getFavoriteArtistNames()}
-              favoriteAlbums={favoriteAlbums}
-
-            />
-          </main>
-
-          <MobileNav view={view} onViewChange={setView} />
-
-          {current && (
-            <Player
-              current={current}
-              isPlaying={isPlaying}
-              togglePlay={togglePlay}
-              onNext={handleNext}
-              getAlbumArt={getAlbumArt}
-              onOpenFullPlayer={() => setShowFullPlayer(true)}
-            />
+            </header>
           )}
-        </>
-      )}
+
+          {/* Auth Page Modal */}
+          {showAuthPage && (
+            <div className="fixed inset-0 z-50">
+              <AuthPage onClose={() => setShowAuthPage(false)} />
+            </div>
+          )}
+
+          <MainContent
+            view={view}
+            selectedArtist={selectedArtist}
+            selectedAlbum={selectedAlbum}
+            songs={songs}
+            playlists={playlists}
+            favorites={favorites}
+            searchQuery={searchQuery}
+            loading={songsLoading}
+            displaySongs={displaySongs}
+            current={current}
+            isPlaying={isPlaying}
+            onPlaySong={handlePlaySong}
+            onArtistClick={handleArtistClick}
+            onAlbumClick={handleAlbumClick}
+            onPlaylistClick={(id: string) => setView(`playlist-${id}`)}
+            onToggleFavorite={toggleFavorite}
+            onPlayNext={handlePlayNext}
+            onAddToPlaylist={openPlaylistModal}
+            onDelete={handleDeleteSong}
+            getAlbumArt={getAlbumArt}
+            setView={setView}
+            setSearchQuery={setSearchQuery}
+            setSelectedAlbum={(album: string | null) => {
+              if (selectedArtist && album) {
+                handleAlbumClick(selectedArtist, album);
+              }
+            }}
+            isFavoriteArtist={isFavoriteArtist}
+            onToggleFavoriteArtist={toggleFavoriteArtist}
+            isFavoriteAlbum={isFavoriteAlbum}
+            onToggleFavoriteAlbum={toggleFavoriteAlbum}
+            favoriteArtists={getFavoriteArtistNames()}
+            favoriteAlbums={favoriteAlbums}
+
+          />
+        </main>
+
+        <MobileNav view={view} onViewChange={setView} />
+
+        {current && (
+          <Player
+            current={current}
+            isPlaying={isPlaying}
+            togglePlay={togglePlay}
+            onNext={handleNext}
+            getAlbumArt={getAlbumArt}
+            onOpenFullPlayer={() => setShowFullPlayer(true)}
+          />
+        )}
+      </div>
 
       {current && (
         <div

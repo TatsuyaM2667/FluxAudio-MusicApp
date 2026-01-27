@@ -11,7 +11,7 @@ interface PlaylistViewProps {
     playlist: Playlist;
     songs: SongMeta[];
     onBack: () => void;
-    onPlaySong: (song: SongMeta) => void;
+    onPlaySong: (song: SongMeta, context?: SongMeta[]) => void;
     getAlbumArt: (picture?: any) => string | null;
     onArtistClick: (artist: string) => void;
     favorites: string[];
@@ -163,7 +163,10 @@ export function PlaylistView({
                                 isPlaying={false}
                                 isFavorite={favorites.includes(song.path)}
                                 onToggleFavorite={(e) => { e.stopPropagation(); onToggleFavorite(song.path); }}
-                                onClick={() => onPlaySong(song)}
+                                onClick={() => {
+                                    console.log('[PlaylistView] Clicked:', song.tags?.title, 'Playlist songs:', playlistSongs.length);
+                                    onPlaySong(song, playlistSongs);
+                                }}
                                 onPlayNext={() => onPlayNext(song)}
                                 onAddToPlaylist={() => onAddToPlaylist(song)}
                                 onDelete={onDelete}
