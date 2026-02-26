@@ -75,17 +75,36 @@ export function FullPlayer({
     // Sync video mode with parent (mute main audio)
     useEffect(() => {
         if (onVideoModeChange) onVideoModeChange(viewMode === 'video');
-        return () => { if (onVideoModeChange) onVideoModeChange(false); };
     }, [viewMode, onVideoModeChange]);
 
-    // Sync playback state
+    // Reset video mode on unmount
+    useEffect(() => {
+        return () => { if (onVideoModeChange) onVideoModeChange(false); };
+    }, [onVideoModeChange]);
+
+    // When song changes, reset viewMode if new song has no video
+    useEffect(() => {
+        if (viewMode === 'video' && !current.videoPath) {
+            setViewMode('art');
+        }
+    }, [current.path, current.videoPath]);
+
+    // Sync video playback state with app's isPlaying state
     useEffect(() => {
         if (viewMode === 'video') {
             [mobileVideoRef.current, desktopVideoRef.current].forEach(video => {
                 if (video) {
-                    if (isPlaying) video.play().catch(() => { });
-                    else video.pause();
+                    if (isPlaying) {
+                        video.play().catch(() => { });
+                    } else {
+                        video.pause();
+                    }
                 }
+            });
+        } else {
+            // If not in video mode, ensure videos are paused to prevent background playback
+            [mobileVideoRef.current, desktopVideoRef.current].forEach(video => {
+                if (video) video.pause();
             });
         }
     }, [isPlaying, viewMode]);
@@ -313,12 +332,13 @@ export function FullPlayer({
                             <div className="w-full aspect-video bg-black flex items-center justify-center z-50 shadow-2xl">
                                 <video
                                     ref={mobileVideoRef}
+                                    key={`mobile-video-${current.path}`}
                                     src={`${API_BASE}${current.videoPath}`}
                                     className="w-full h-full object-contain"
-                                    controls
                                     playsInline
+                                    autoPlay={isPlaying}
+                                    onClick={togglePlay}
                                     onEnded={() => {
-                                        // ビデオ終了時に次の曲へ進む
                                         if (onVideoEnd) onVideoEnd();
                                     }}
                                     onError={(e) => {
@@ -508,11 +528,12 @@ export function FullPlayer({
                             {viewMode === 'video' && current.videoPath ? (
                                 <video
                                     ref={desktopVideoRef}
+                                    key={`desktop-video-${current.path}`}
                                     src={`${API_BASE}${current.videoPath}`}
-                                    className="w-full h-full object-cover"
-                                    controls
+                                    className="w-full h-full object-cover cursor-pointer"
+                                    autoPlay={isPlaying}
+                                    onClick={togglePlay}
                                     onEnded={() => {
-                                        // ビデオ終了時に次の曲へ進む
                                         if (onVideoEnd) onVideoEnd();
                                     }}
                                     onError={(e) => {

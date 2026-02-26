@@ -314,21 +314,28 @@ function App() {
     if (!audio) return;
 
     if (current) {
-      if (isPlaying) {
-        // Only play if the audioSrc matches the current song
-        if (audioSrc.path === current.path && audioSrc.url) {
-          const playPromise = audio.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(error => {
-              console.log("Playback prevented:", error);
-            });
-          }
-        }
-      } else {
+      if (isVideoMode) {
+        // In video mode, keep audio paused — video handles playback
         audio.pause();
+        audio.muted = true;
+      } else {
+        audio.muted = false;
+        if (isPlaying) {
+          // Only play if the audioSrc matches the current song
+          if (audioSrc.path === current.path && audioSrc.url) {
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(error => {
+                console.log("Playback prevented:", error);
+              });
+            }
+          }
+        } else {
+          audio.pause();
+        }
       }
     }
-  }, [current, isPlaying, audioSrc, audioRef]);
+  }, [current, isPlaying, audioSrc, audioRef, isVideoMode]);
 
   // Delete Song Handler
   const handleDeleteSong = async (song: typeof songs[0]) => {
@@ -561,7 +568,11 @@ function App() {
             onQueueItemClick={(song: SongMeta) => handlePlaySong(song)}
             onArtistClick={handleArtistClick}
             onVideoModeChange={(isVideo: boolean) => setIsVideoMode(isVideo)}
-            onVideoEnd={handleSongEnd}
+            onVideoEnd={() => {
+              // Reset video mode BEFORE advancing to next song
+              setIsVideoMode(false);
+              handleSongEnd();
+            }}
           />
         </div>
       )
