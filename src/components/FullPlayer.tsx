@@ -72,6 +72,26 @@ export function FullPlayer({
     const mobileVideoRef = useRef<HTMLVideoElement>(null);
     const desktopVideoRef = useRef<HTMLVideoElement>(null);
 
+    // Video time tracking — so seekbar syncs with video when in video mode
+    const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+    const [videoDuration, setVideoDuration] = useState(0);
+
+    // Effective time values: use video time when in video mode, audio time otherwise
+    const effectiveCurrentTime = viewMode === 'video' ? videoCurrentTime : currentTime;
+    const effectiveDuration = viewMode === 'video' ? videoDuration : duration;
+
+    // Handle seeking: seek video when in video mode, audio otherwise
+    const handleSeek = (time: number) => {
+        if (viewMode === 'video') {
+            [mobileVideoRef.current, desktopVideoRef.current].forEach(video => {
+                if (video) video.currentTime = time;
+            });
+            setVideoCurrentTime(time);
+        } else {
+            onTimeChange(time);
+        }
+    };
+
     // Sync video mode with parent (mute main audio)
     useEffect(() => {
         if (onVideoModeChange) onVideoModeChange(viewMode === 'video');
@@ -88,9 +108,9 @@ export function FullPlayer({
     useEffect(() => {
         if (prevPathRef.current !== current.path) {
             prevPathRef.current = current.path;
-            if (viewMode === 'video') {
-                setViewMode('art');
-            }
+            setViewMode('art');
+            setVideoCurrentTime(0);
+            setVideoDuration(0);
         }
     }, [current.path]);
 
@@ -343,6 +363,8 @@ export function FullPlayer({
                                     playsInline
                                     autoPlay={isPlaying}
                                     onClick={togglePlay}
+                                    onTimeUpdate={(e) => setVideoCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                                    onLoadedMetadata={(e) => setVideoDuration((e.target as HTMLVideoElement).duration)}
                                     onEnded={() => {
                                         if (onVideoEnd) onVideoEnd();
                                     }}
@@ -456,17 +478,17 @@ export function FullPlayer({
                             <input
                                 type="range"
                                 min={0}
-                                max={duration || 100}
-                                value={currentTime}
-                                onChange={(e) => onTimeChange(Number(e.target.value))}
+                                max={effectiveDuration || 100}
+                                value={effectiveCurrentTime}
+                                onChange={(e) => handleSeek(Number(e.target.value))}
                                 className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:scale-100 transition-all"
                                 style={{
-                                    background: `linear-gradient(to right, white ${duration ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.2) 0)`
+                                    background: `linear-gradient(to right, white ${effectiveDuration ? (effectiveCurrentTime / effectiveDuration) * 100 : 0}%, rgba(255,255,255,0.2) 0)`
                                 }}
                             />
                             <div className="flex justify-between text-[10px] items-center font-medium text-white/50 mt-1 font-mono">
-                                <span>{formatTime(currentTime)}</span>
-                                <span>{formatTime(duration)}</span>
+                                <span>{formatTime(effectiveCurrentTime)}</span>
+                                <span>{formatTime(effectiveDuration)}</span>
                             </div>
                         </div>
 
@@ -538,6 +560,8 @@ export function FullPlayer({
                                     className="w-full h-full object-cover cursor-pointer"
                                     autoPlay={isPlaying}
                                     onClick={togglePlay}
+                                    onTimeUpdate={(e) => setVideoCurrentTime((e.target as HTMLVideoElement).currentTime)}
+                                    onLoadedMetadata={(e) => setVideoDuration((e.target as HTMLVideoElement).duration)}
                                     onEnded={() => {
                                         if (onVideoEnd) onVideoEnd();
                                     }}
@@ -577,17 +601,17 @@ export function FullPlayer({
                             <input
                                 type="range"
                                 min={0}
-                                max={duration || 100}
-                                value={currentTime}
-                                onChange={(e) => onTimeChange(Number(e.target.value))}
+                                max={effectiveDuration || 100}
+                                value={effectiveCurrentTime}
+                                onChange={(e) => handleSeek(Number(e.target.value))}
                                 className="w-full h-1.5 bg-white/20 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:hover:scale-150 transition-all"
                                 style={{
-                                    background: `linear-gradient(to right, white ${duration ? (currentTime / duration) * 100 : 0}%, rgba(255,255,255,0.1) 0)`
+                                    background: `linear-gradient(to right, white ${effectiveDuration ? (effectiveCurrentTime / effectiveDuration) * 100 : 0}%, rgba(255,255,255,0.1) 0)`
                                 }}
                             />
                             <div className="flex justify-between text-xs font-mono text-white/40 mt-1">
-                                <span>{formatTime(currentTime)}</span>
-                                <span>{formatTime(duration)}</span>
+                                <span>{formatTime(effectiveCurrentTime)}</span>
+                                <span>{formatTime(effectiveDuration)}</span>
                             </div>
                             {/* Buttons */}
                             <div className="flex items-center justify-between mt-6 px-4">
