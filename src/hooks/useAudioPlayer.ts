@@ -26,6 +26,7 @@ export function useAudioPlayer(songs: SongMeta[]) {
     const repeatModeRef = useRef(repeatMode);
     const nextUpRef = useRef(nextUp);
     const isPlayingRef = useRef(isPlaying);
+    const isVideoModeRef = useRef(isVideoMode);
     const playlistContextRef = useRef(playlistContext);
     const shuffledSongsRef = useRef(shuffledSongs);
 
@@ -36,6 +37,7 @@ export function useAudioPlayer(songs: SongMeta[]) {
     useEffect(() => { repeatModeRef.current = repeatMode; }, [repeatMode]);
     useEffect(() => { nextUpRef.current = nextUp; }, [nextUp]);
     useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+    useEffect(() => { isVideoModeRef.current = isVideoMode; }, [isVideoMode]);
     useEffect(() => { playlistContextRef.current = playlistContext; }, [playlistContext]);
     useEffect(() => { shuffledSongsRef.current = shuffledSongs; }, [shuffledSongs]);
 
@@ -255,7 +257,8 @@ export function useAudioPlayer(songs: SongMeta[]) {
     const handleLoadedMetadata = useCallback(() => {
         if (audioRef.current) {
             setDuration(audioRef.current.duration);
-            if (isPlaying) {
+            // Don't auto-play audio when in video mode — video handles playback
+            if (isPlaying && !isVideoModeRef.current) {
                 audioRef.current.play().catch(e => console.log("Auto-play error", e));
             }
         }

@@ -571,6 +571,10 @@ function App() {
             onVideoEnd={() => {
               // Reset video mode BEFORE advancing to next song
               setIsVideoMode(false);
+              // Explicitly unmute audio so the next (non-video) song plays correctly
+              if (audioRef.current) {
+                audioRef.current.muted = false;
+              }
               handleSongEnd();
             }}
           />

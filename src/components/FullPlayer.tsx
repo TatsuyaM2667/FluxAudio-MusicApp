@@ -82,12 +82,17 @@ export function FullPlayer({
         return () => { if (onVideoModeChange) onVideoModeChange(false); };
     }, [onVideoModeChange]);
 
-    // When song changes, reset viewMode if new song has no video
+    // When song changes, always reset viewMode to 'art'
+    // This ensures the next song doesn't auto-play as a music video
+    const prevPathRef = useRef(current.path);
     useEffect(() => {
-        if (viewMode === 'video' && !current.videoPath) {
-            setViewMode('art');
+        if (prevPathRef.current !== current.path) {
+            prevPathRef.current = current.path;
+            if (viewMode === 'video') {
+                setViewMode('art');
+            }
         }
-    }, [current.path, current.videoPath]);
+    }, [current.path]);
 
     // Sync video playback state with app's isPlaying state
     useEffect(() => {
