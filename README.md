@@ -3,7 +3,7 @@
 FluxAudioは、ReactとViteで構築されたモダンなWebベースの音楽ストリーミングアプリケーションです。**Cloudflare R2** に保存された個人の音楽ライブラリを、**Cloudflare Workers** を介してストリーミング再生し、Webアプリは **Firebase Hosting** 上で動作します。
 
 ![FluxAudio Screenshot](public/splash_bg.jpg)
-*(ここに実際のアプリのスクリーンショットを配置してください)*
+
 
 ## ✨ 主な機能
 
