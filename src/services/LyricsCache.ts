@@ -4,12 +4,12 @@ import { downloadService } from './DownloadService';
 /**
  * LyricsCache — In-memory + persistent cache for lyrics (.lrc) content.
  * 
- * Eliminates repeated network fetches for already-viewed lyrics
- * and supports prefetching next songs' lyrics for instant display.
+ * Supports cache invalidation when lrcPath changes (file updated/deleted).
+ * Stores lrcPath alongside cached data to detect changes.
  */
 class LyricsCacheService {
-    // In-memory cache: songPath -> lrc text (or null if no lyrics)
-    private cache = new Map<string, string | null>();
+    // In-memory cache: songPath -> { lrc, lrcPath }
+    private cache = new Map<string, { lrc: string | null; lrcPath: string | null }>();
 
     // Track in-flight fetches to avoid duplicate requests
     private inflight = new Map<string, Promise<string | null>>();
@@ -17,7 +17,7 @@ class LyricsCacheService {
     // IndexedDB store name for persistent lyrics cache
     private readonly DB_NAME = 'music-db';
     private readonly STORE_NAME = 'lyrics_cache';
-    private readonly DB_VERSION = 2; // Bump version to add new store
+    private readonly DB_VERSION = 2;
     private db: IDBDatabase | null = null;
 
     /**
@@ -31,11 +31,9 @@ class LyricsCacheService {
 
             request.onupgradeneeded = (e) => {
                 const db = (e.target as IDBOpenDBRequest).result;
-                // Keep existing 'metadata' store
                 if (!db.objectStoreNames.contains('metadata')) {
                     db.createObjectStore('metadata', { keyPath: 'path' });
                 }
-                // Create lyrics cache store
                 if (!db.objectStoreNames.contains(this.STORE_NAME)) {
                     db.createObjectStore(this.STORE_NAME, { keyPath: 'path' });
                 }
@@ -52,8 +50,9 @@ class LyricsCacheService {
 
     /**
      * Get lyrics from persistent (IndexedDB) cache.
+     * Returns the stored entry or undefined if not found.
      */
-    private async getFromDB(path: string): Promise<string | null | undefined> {
+    private async getFromDB(path: string): Promise<{ lrc: string | null; lrcPath: string | null } | undefined> {
         try {
             const db = await this.openDB();
             return new Promise((resolve) => {
@@ -63,9 +62,9 @@ class LyricsCacheService {
                 request.onsuccess = () => {
                     const result = request.result;
                     if (result) {
-                        resolve(result.lrc); // string | null
+                        resolve({ lrc: result.lrc, lrcPath: result.lrcPath ?? null });
                     } else {
-                        resolve(undefined); // Not in DB
+                        resolve(undefined);
                     }
                 };
                 request.onerror = () => resolve(undefined);
@@ -78,13 +77,13 @@ class LyricsCacheService {
     /**
      * Save lyrics to persistent (IndexedDB) cache.
      */
-    private async saveToDB(path: string, lrc: string | null): Promise<void> {
+    private async saveToDB(path: string, lrc: string | null, lrcPath: string | null): Promise<void> {
         try {
             const db = await this.openDB();
             return new Promise((resolve) => {
                 const tx = db.transaction(this.STORE_NAME, 'readwrite');
                 const store = tx.objectStore(this.STORE_NAME);
-                store.put({ path, lrc, cachedAt: Date.now() });
+                store.put({ path, lrc, lrcPath, cachedAt: Date.now() });
                 tx.oncomplete = () => resolve();
                 tx.onerror = () => resolve();
             });
@@ -94,22 +93,49 @@ class LyricsCacheService {
     }
 
     /**
+     * Delete a specific entry from IndexedDB cache.
+     */
+    private async deleteFromDB(path: string): Promise<void> {
+        try {
+            const db = await this.openDB();
+            return new Promise((resolve) => {
+                const tx = db.transaction(this.STORE_NAME, 'readwrite');
+                const store = tx.objectStore(this.STORE_NAME);
+                store.delete(path);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => resolve();
+            });
+        } catch {
+            // Silently fail
+        }
+    }
+
+    /**
      * Get lyrics for a song. Checks caches in order:
-     *   1. In-memory cache (instant)
-     *   2. IndexedDB cache (fast, ~1-5ms)
+     *   1. In-memory cache (instant) — only if lrcPath matches
+     *   2. IndexedDB cache (fast) — only if lrcPath matches
      *   3. Offline local file (for downloaded songs)
      *   4. Network fetch (slow)
      * 
-     * Returns the cached/fetched lrc string, or null if none.
+     * If lrcPath has changed since last cache, invalidates and re-fetches.
      */
     async get(
         songPath: string,
         lrcPath?: string | null,
         isOffline = false,
     ): Promise<string | null> {
-        // 1. In-memory cache (instant return)
+        const normalizedLrcPath = lrcPath ?? null;
+
+        // 1. In-memory cache (instant return) — validate lrcPath
         if (this.cache.has(songPath)) {
-            return this.cache.get(songPath)!;
+            const entry = this.cache.get(songPath)!;
+            if (entry.lrcPath === normalizedLrcPath) {
+                return entry.lrc;
+            }
+            // lrcPath changed → invalidate
+            console.log(`[LyricsCache] lrcPath changed for ${songPath}, invalidating cache`);
+            this.cache.delete(songPath);
+            this.deleteFromDB(songPath);
         }
 
         // 2. Check if there's already an in-flight request for this song
@@ -118,7 +144,7 @@ class LyricsCacheService {
         }
 
         // Create a single promise for this fetch and store it
-        const fetchPromise = this.fetchAndCache(songPath, lrcPath, isOffline);
+        const fetchPromise = this.fetchAndCache(songPath, normalizedLrcPath, isOffline);
         this.inflight.set(songPath, fetchPromise);
 
         try {
@@ -131,24 +157,38 @@ class LyricsCacheService {
 
     private async fetchAndCache(
         songPath: string,
-        lrcPath?: string | null,
-        isOffline = false,
+        lrcPath: string | null,
+        isOffline: boolean,
     ): Promise<string | null> {
-        // 2. IndexedDB cache
-        const dbResult = await this.getFromDB(songPath);
-        if (dbResult !== undefined) {
-            this.cache.set(songPath, dbResult);
-            return dbResult;
+        // 2. IndexedDB cache — validate lrcPath matches
+        const dbEntry = await this.getFromDB(songPath);
+        if (dbEntry !== undefined) {
+            if (dbEntry.lrcPath === lrcPath) {
+                // Cache hit with matching lrcPath
+                this.cache.set(songPath, dbEntry);
+                return dbEntry.lrc;
+            }
+            // lrcPath changed → remove stale entry
+            console.log(`[LyricsCache] DB lrcPath mismatch for ${songPath}, re-fetching`);
+            this.deleteFromDB(songPath);
         }
 
-        // 3. Offline local file (downloaded songs)
+        // 3. Handle no-lyrics case early
+        if (!lrcPath) {
+            const entry = { lrc: null, lrcPath: null };
+            this.cache.set(songPath, entry);
+            this.saveToDB(songPath, null, null);
+            return null;
+        }
+
+        // 4. Offline local file (downloaded songs)
         if (downloadService.isDownloaded(songPath)) {
             try {
                 const localLrc = await downloadService.getOfflineLrc(songPath);
                 if (localLrc) {
-                    this.cache.set(songPath, localLrc);
-                    // Save to IndexedDB for faster access next time
-                    this.saveToDB(songPath, localLrc);
+                    const entry = { lrc: localLrc, lrcPath };
+                    this.cache.set(songPath, entry);
+                    this.saveToDB(songPath, localLrc, lrcPath);
                     return localLrc;
                 }
             } catch {
@@ -156,18 +196,19 @@ class LyricsCacheService {
             }
         }
 
-        // 4. If offline and nothing found locally, give up
+        // 5. If offline and nothing found locally, give up
         if (isOffline) {
-            this.cache.set(songPath, null);
+            const entry = { lrc: null, lrcPath };
+            this.cache.set(songPath, entry);
             return null;
         }
 
-        // 5. Network fetch
+        // 6. Network fetch
         try {
             const lrc = await fetchLyrics(songPath, lrcPath);
-            this.cache.set(songPath, lrc);
-            // Persist to IndexedDB
-            this.saveToDB(songPath, lrc);
+            const entry = { lrc, lrcPath };
+            this.cache.set(songPath, entry);
+            this.saveToDB(songPath, lrc, lrcPath);
             return lrc;
         } catch {
             return null;
@@ -180,29 +221,97 @@ class LyricsCacheService {
      */
     prefetch(songs: Array<{ path: string; lrcPath?: string | null }>, isOffline = false): void {
         for (const song of songs) {
-            // Skip if already cached or in-flight
-            if (this.cache.has(song.path) || this.inflight.has(song.path)) continue;
+            const normalizedLrcPath = song.lrcPath ?? null;
+
+            // Skip if already correctly cached or in-flight
+            if (this.inflight.has(song.path)) continue;
+            if (this.cache.has(song.path)) {
+                const entry = this.cache.get(song.path)!;
+                if (entry.lrcPath === normalizedLrcPath) continue;
+                // lrcPath changed, re-fetch
+            }
+
             // Fire-and-forget
             this.get(song.path, song.lrcPath, isOffline).catch(() => { });
         }
     }
 
     /**
-     * Clear the in-memory cache (e.g., on logout or memory pressure).
+     * Invalidate cache entries for songs that are no longer in the song list,
+     * or whose lrcPath has changed. Call this after fetching a fresh song list.
+     */
+    syncWithSongList(songs: Array<{ path: string; lrcPath?: string | null }>): void {
+        const songMap = new Map(songs.map(s => [s.path, s.lrcPath ?? null]));
+
+        // Invalidate memory cache entries for removed songs or changed lrcPaths
+        for (const [path, entry] of this.cache) {
+            if (!songMap.has(path)) {
+                // Song no longer exists → remove cache
+                console.log(`[LyricsCache] Song removed: ${path}, clearing cache`);
+                this.cache.delete(path);
+                this.deleteFromDB(path);
+            } else {
+                const newLrcPath = songMap.get(path)!;
+                if (entry.lrcPath !== newLrcPath) {
+                    // lrcPath changed → invalidate
+                    console.log(`[LyricsCache] lrcPath updated for ${path}, clearing cache`);
+                    this.cache.delete(path);
+                    this.deleteFromDB(path);
+                }
+            }
+        }
+    }
+
+    /**
+     * Invalidate cache for a specific song.
+     */
+    invalidate(songPath: string): void {
+        this.cache.delete(songPath);
+        this.inflight.delete(songPath);
+        this.deleteFromDB(songPath);
+    }
+
+    /**
+     * Clear all in-memory cache (e.g., on logout or memory pressure).
      */
     clear(): void {
         this.cache.clear();
         this.inflight.clear();
     }
 
-    /** Check if lyrics are already in memory cache */
-    has(songPath: string): boolean {
-        return this.cache.has(songPath);
+    /**
+     * Clear all cache including IndexedDB.
+     */
+    async clearAll(): Promise<void> {
+        this.cache.clear();
+        this.inflight.clear();
+        try {
+            const db = await this.openDB();
+            return new Promise((resolve) => {
+                const tx = db.transaction(this.STORE_NAME, 'readwrite');
+                const store = tx.objectStore(this.STORE_NAME);
+                store.clear();
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => resolve();
+            });
+        } catch {
+            // Silently fail
+        }
     }
 
-    /** Get lyrics synchronously from memory cache only (returns undefined if not cached) */
-    getSync(songPath: string): string | null | undefined {
-        return this.cache.get(songPath);
+    /** Check if lyrics are in memory cache with valid lrcPath */
+    has(songPath: string, lrcPath?: string | null): boolean {
+        if (!this.cache.has(songPath)) return false;
+        const entry = this.cache.get(songPath)!;
+        return entry.lrcPath === (lrcPath ?? null);
+    }
+
+    /** Get lyrics synchronously from memory cache only (returns undefined if not cached or stale) */
+    getSync(songPath: string, lrcPath?: string | null): string | null | undefined {
+        const entry = this.cache.get(songPath);
+        if (!entry) return undefined;
+        if (entry.lrcPath !== (lrcPath ?? null)) return undefined; // Stale
+        return entry.lrc;
     }
 }
 

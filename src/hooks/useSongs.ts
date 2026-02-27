@@ -1,15 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { SongMeta } from '../types/music';
 import { fetchSongs, fetchMetadataBlob } from '../api';
 import { getCachedMetadata, cacheMetadata } from '../utils/db';
 import { useOffline } from './useOffline';
 import { downloadService } from '../services/DownloadService';
 import { platform } from '../utils/platform';
+import { lyricsCache } from '../services/LyricsCache';
 
 export function useSongs() {
     const [songs, setSongs] = useState<SongMeta[]>([]);
     const [loading, setLoading] = useState(true);
     const isOffline = useOffline();
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    const refresh = useCallback(() => {
+        console.log('[useSongs] Manual refresh triggered');
+        lyricsCache.clear(); // Clear in-memory lyrics cache on refresh
+        setRefreshKey(prev => prev + 1);
+    }, []);
 
     useEffect(() => {
         let isCancelled = false;
@@ -74,6 +82,11 @@ export function useSongs() {
 
                 setSongs(initialSongs);
                 setLoading(false);
+
+                // Sync lyrics cache: invalidate entries for removed songs or changed lrcPaths
+                lyricsCache.syncWithSongList(
+                    initialSongs.map(s => ({ path: s.path, lrcPath: s.lrcPath }))
+                );
 
                 // Fetch metadata for songs that don't have it yet
                 for (const song of initialSongs) {
@@ -149,7 +162,7 @@ export function useSongs() {
         return () => {
             isCancelled = true;
         };
-    }, [isOffline]); // Reload when offline status changes
+    }, [isOffline, refreshKey]); // Reload when offline status changes or manual refresh
 
-    return { songs, loading, setSongs };
+    return { songs, loading, setSongs, refresh };
 }

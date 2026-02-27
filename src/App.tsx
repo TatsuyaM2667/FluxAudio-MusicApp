@@ -116,7 +116,7 @@ function App() {
   }, []);
 
   // Custom Hooks
-  const { songs, loading: songsLoading, setSongs } = useSongs();
+  const { songs, loading: songsLoading, setSongs, refresh: refreshSongs } = useSongs();
   const isOffline = useOffline();
 
 
@@ -432,6 +432,9 @@ function App() {
                   )}
                 </div>
 
+                <button onClick={refreshSongs} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition" title="曲リストを更新">
+                  🔄
+                </button>
                 <button onClick={toggleTheme} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition">
                   {theme === 'dark' ? '🌙' : '☀️'}
                 </button>

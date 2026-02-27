@@ -10,6 +10,7 @@ export function useLyrics(
     const [currentLyrics, setCurrentLyrics] = useState<string | null>(null);
     const isOffline = useOffline();
     const prevPathRef = useRef<string | null>(null);
+    const prevLrcPathRef = useRef<string | null | undefined>(undefined);
 
     useEffect(() => {
         let cancelled = false;
@@ -18,15 +19,23 @@ export function useLyrics(
             if (!current) {
                 setCurrentLyrics(null);
                 prevPathRef.current = null;
+                prevLrcPathRef.current = undefined;
                 return;
             }
 
-            // If same song, don't re-fetch
-            if (prevPathRef.current === current.path) return;
-            prevPathRef.current = current.path;
+            // Skip re-fetch if same song AND same lrcPath
+            if (
+                prevPathRef.current === current.path &&
+                prevLrcPathRef.current === current.lrcPath
+            ) {
+                return;
+            }
 
-            // Instant return from memory cache
-            const cached = lyricsCache.getSync(current.path);
+            prevPathRef.current = current.path;
+            prevLrcPathRef.current = current.lrcPath;
+
+            // Instant return from memory cache (validates lrcPath)
+            const cached = lyricsCache.getSync(current.path, current.lrcPath);
             if (cached !== undefined) {
                 setCurrentLyrics(cached);
             } else {
@@ -47,7 +56,6 @@ export function useLyrics(
 
             // Prefetch next songs' lyrics in the background
             if (queue && queue.length > 0) {
-                // Prefetch up to 3 upcoming songs
                 const prefetchTargets = queue
                     .slice(0, 3)
                     .filter(s => s.path !== current.path)
