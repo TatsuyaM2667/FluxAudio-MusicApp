@@ -72,17 +72,27 @@ export function FullPlayer({
     const mobileVideoRef = useRef<HTMLVideoElement>(null);
     const desktopVideoRef = useRef<HTMLVideoElement>(null);
 
+    // Track which song the user explicitly activated video for.
+    // When the song changes, videoActivePath won't match current.path,
+    // so activeViewMode becomes 'art' synchronously (no useEffect race condition).
+    const [videoActivePath, setVideoActivePath] = useState<string | null>(null);
+
+    // Synchronously derived: is video mode truly active?
+    const isVideoViewActive = viewMode === 'video' && videoActivePath === current.path && !!current.videoPath;
+    // The actual display mode — falls back to 'art' when video is not active for this song
+    const activeViewMode = isVideoViewActive ? 'video' : (viewMode === 'video' ? 'art' : viewMode);
+
     // Video time tracking — so seekbar syncs with video when in video mode
     const [videoCurrentTime, setVideoCurrentTime] = useState(0);
     const [videoDuration, setVideoDuration] = useState(0);
 
     // Effective time values: use video time when in video mode, audio time otherwise
-    const effectiveCurrentTime = viewMode === 'video' ? videoCurrentTime : currentTime;
-    const effectiveDuration = viewMode === 'video' ? videoDuration : duration;
+    const effectiveCurrentTime = isVideoViewActive ? videoCurrentTime : currentTime;
+    const effectiveDuration = isVideoViewActive ? videoDuration : duration;
 
     // Handle seeking: seek video when in video mode, audio otherwise
     const handleSeek = (time: number) => {
-        if (viewMode === 'video') {
+        if (isVideoViewActive) {
             [mobileVideoRef.current, desktopVideoRef.current].forEach(video => {
                 if (video) video.currentTime = time;
             });
@@ -94,29 +104,25 @@ export function FullPlayer({
 
     // Sync video mode with parent (mute main audio)
     useEffect(() => {
-        if (onVideoModeChange) onVideoModeChange(viewMode === 'video');
-    }, [viewMode, onVideoModeChange]);
+        if (onVideoModeChange) onVideoModeChange(isVideoViewActive);
+    }, [isVideoViewActive, onVideoModeChange]);
 
     // Reset video mode on unmount
     useEffect(() => {
         return () => { if (onVideoModeChange) onVideoModeChange(false); };
     }, [onVideoModeChange]);
 
-    // When song changes, always reset viewMode to 'art'
-    // This ensures the next song doesn't auto-play as a music video
+    // Reset video time when song changes
     const prevPathRef = useRef(current.path);
-    useEffect(() => {
-        if (prevPathRef.current !== current.path) {
-            prevPathRef.current = current.path;
-            setViewMode('art');
-            setVideoCurrentTime(0);
-            setVideoDuration(0);
-        }
-    }, [current.path]);
+    if (prevPathRef.current !== current.path) {
+        prevPathRef.current = current.path;
+        setVideoCurrentTime(0);
+        setVideoDuration(0);
+    }
 
     // Sync video playback state with app's isPlaying state
     useEffect(() => {
-        if (viewMode === 'video') {
+        if (isVideoViewActive) {
             [mobileVideoRef.current, desktopVideoRef.current].forEach(video => {
                 if (video) {
                     if (isPlaying) {
@@ -132,7 +138,7 @@ export function FullPlayer({
                 if (video) video.pause();
             });
         }
-    }, [isPlaying, viewMode]);
+    }, [isPlaying, isVideoViewActive]);
 
     // Framer Motion values for interactive drag
     const y = useMotionValue(0);
@@ -148,14 +154,14 @@ export function FullPlayer({
     const desktopQueueRef = useRef<HTMLHeadingElement>(null);
 
     useEffect(() => {
-        if (viewMode === 'queue' && history.length > 0) {
+        if (activeViewMode === 'queue' && history.length > 0) {
             // Small delay to ensure render
             setTimeout(() => {
                 mobileQueueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 desktopQueueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 100);
         }
-    }, [viewMode, history.length]);
+    }, [activeViewMode, history.length]);
 
     const art = current.tags?.picture ? getAlbumArt(current.tags.picture) : null;
     const title = current.tags?.title || current.path.split("/").pop()?.replace(/\.[^/.]+$/, "") || "Unknown Title";
@@ -195,7 +201,17 @@ export function FullPlayer({
     const hasVideo = !!current.videoPath;
     const handleVideoToggle = () => {
         if (hasVideo) {
-            setViewMode(prev => prev === 'video' ? 'art' : 'video');
+            if (isVideoViewActive) {
+                // Turn off video
+                setViewMode('art');
+                setVideoActivePath(null);
+            } else {
+                // Turn on video for THIS song
+                setViewMode('video');
+                setVideoActivePath(current.path);
+                setVideoCurrentTime(0);
+                setVideoDuration(0);
+            }
         }
     };
 
@@ -353,7 +369,7 @@ export function FullPlayer({
 
                     {/* Mobile Main Content */}
                     <div className="flex-1 overflow-hidden relative flex flex-col justify-center">
-                        {viewMode === 'video' && current.videoPath ? (
+                        {isVideoViewActive ? (
                             <div className="w-full aspect-video bg-black flex items-center justify-center z-50 shadow-2xl">
                                 <video
                                     ref={mobileVideoRef}
@@ -371,10 +387,11 @@ export function FullPlayer({
                                     onError={(e) => {
                                         console.error("Video failed to load", e);
                                         setViewMode('art');
+                                        setVideoActivePath(null);
                                     }}
                                 />
                             </div>
-                        ) : viewMode === 'art' ? (
+                        ) : activeViewMode === 'art' ? (
                             // Large Artwork Mode
                             <div className="w-full px-8 pb-8 flex items-center justify-center">
                                 <div className="w-full aspect-square shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden relative bg-white/5">
@@ -387,7 +404,7 @@ export function FullPlayer({
                                 className="absolute inset-0 overflow-y-auto custom-scrollbar px-6 py-4"
                                 onPointerDown={(e) => e.stopPropagation()}
                             >
-                                {viewMode === 'lyrics' ? (
+                                {activeViewMode === 'lyrics' ? (
                                     <>
                                         <div className="absolute top-0 right-6 flex gap-2 p-2 bg-black/20 rounded-b-lg z-20">
                                             <button onClick={() => setLyricsStyle('default')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'default' ? 'bg-white/30' : 'bg-white/10'}`}>Default</button>
@@ -512,21 +529,21 @@ export function FullPlayer({
                         {/* Bottom Utility Buttons */}
                         <div className="flex items-center justify-center gap-12 pb-8">
                             <button
-                                className={`p-2 transition ${viewMode === 'lyrics' ? 'text-white bg-white/10 rounded-lg' : 'text-white/40'}`}
-                                onClick={() => setViewMode(prev => prev === 'lyrics' ? 'art' : 'lyrics')}
+                                className={`p-2 transition ${activeViewMode === 'lyrics' ? 'text-white bg-white/10 rounded-lg' : 'text-white/40'}`}
+                                onClick={() => { setViewMode(prev => prev === 'lyrics' ? 'art' : 'lyrics'); setVideoActivePath(null); }}
                             >
                                 <IconQuote size={24} />
                             </button>
                             <button
-                                className={`p-2 transition ${viewMode === 'video' ? 'text-white bg-white/10 rounded-lg' : (hasVideo ? 'text-white/80' : 'text-white/20')}`}
+                                className={`p-2 transition ${isVideoViewActive ? 'text-white bg-white/10 rounded-lg' : (hasVideo ? 'text-white/80' : 'text-white/20')}`}
                                 onClick={handleVideoToggle}
                                 disabled={!hasVideo}
                             >
                                 <IconAirplay size={24} />
                             </button>
                             <button
-                                className={`p-2 transition ${viewMode === 'queue' ? 'text-white bg-white/10 rounded-lg' : 'text-white/40'}`}
-                                onClick={() => setViewMode(prev => prev === 'queue' ? 'art' : 'queue')}
+                                className={`p-2 transition ${activeViewMode === 'queue' ? 'text-white bg-white/10 rounded-lg' : 'text-white/40'}`}
+                                onClick={() => { setViewMode(prev => prev === 'queue' ? 'art' : 'queue'); setVideoActivePath(null); }}
                             >
                                 <IconListMusic size={24} />
                             </button>
@@ -550,9 +567,9 @@ export function FullPlayer({
                         <div
                             key={`art-desktop-${current.path}`}
                             className="aspect-square w-full max-w-[500px] shadow-[0_30px_60px_rgba(0,0,0,0.5)] rounded-lg overflow-hidden relative cursor-pointer group"
-                            onClick={() => hasVideo ? setViewMode('video') : setShowInfo(true)}
+                            onClick={() => hasVideo ? handleVideoToggle() : setShowInfo(true)}
                         >
-                            {viewMode === 'video' && current.videoPath ? (
+                            {isVideoViewActive ? (
                                 <video
                                     ref={desktopVideoRef}
                                     key={`desktop-video-${current.path}`}
@@ -568,6 +585,7 @@ export function FullPlayer({
                                     onError={(e) => {
                                         console.error("Video failed to load", e);
                                         setViewMode('art');
+                                        setVideoActivePath(null);
                                     }}
                                 />
                             ) : (
@@ -575,7 +593,7 @@ export function FullPlayer({
                             )}
 
                             {/* Hover Overlay */}
-                            {viewMode !== 'video' && (
+                            {!isVideoViewActive && (
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
                                     {hasVideo ? <IconAirplay size={48} className="text-white" /> : <IconInfo size={48} className="text-white" />}
                                     <span className="absolute bottom-4 text-sm font-bold tracking-widest text-white/80">{hasVideo ? 'PLAY VIDEO' : 'DETAILS'}</span>
@@ -629,21 +647,21 @@ export function FullPlayer({
                             {/* View Toggle Buttons */}
                             <div className="flex items-center justify-center gap-12 mt-10">
                                 <button
-                                    className={`p-2 transition hover:scale-110 ${viewMode === 'lyrics' ? 'text-white bg-white/10 rounded-lg' : 'text-white/40 hover:text-white'}`}
-                                    onClick={() => setViewMode(prev => prev === 'lyrics' ? 'art' : 'lyrics')}
+                                    className={`p-2 transition hover:scale-110 ${activeViewMode === 'lyrics' ? 'text-white bg-white/10 rounded-lg' : 'text-white/40 hover:text-white'}`}
+                                    onClick={() => { setViewMode(prev => prev === 'lyrics' ? 'art' : 'lyrics'); setVideoActivePath(null); }}
                                 >
                                     <IconQuote size={24} />
                                 </button>
                                 <button
-                                    className={`p-2 transition hover:scale-110 ${viewMode === 'video' ? 'text-white bg-white/10 rounded-lg' : (hasVideo ? 'text-white/80 hover:text-white' : 'text-white/20')}`}
+                                    className={`p-2 transition hover:scale-110 ${isVideoViewActive ? 'text-white bg-white/10 rounded-lg' : (hasVideo ? 'text-white/80 hover:text-white' : 'text-white/20')}`}
                                     onClick={handleVideoToggle}
                                     disabled={!hasVideo}
                                 >
                                     <IconAirplay size={24} />
                                 </button>
                                 <button
-                                    className={`p-2 transition hover:scale-110 ${viewMode === 'queue' ? 'text-white bg-white/10 rounded-lg' : 'text-white/40 hover:text-white'}`}
-                                    onClick={() => setViewMode(prev => prev === 'queue' ? 'art' : 'queue')}
+                                    className={`p-2 transition hover:scale-110 ${activeViewMode === 'queue' ? 'text-white bg-white/10 rounded-lg' : 'text-white/40 hover:text-white'}`}
+                                    onClick={() => { setViewMode(prev => prev === 'queue' ? 'art' : 'queue'); setVideoActivePath(null); }}
                                 >
                                     <IconListMusic size={24} />
                                 </button>
@@ -654,7 +672,7 @@ export function FullPlayer({
                     <div className="w-1/2 h-full overflow-hidden mask-linear-fade relative">
                         {/* Desktop Lyrics/Queue */}
                         <div className="h-full overflow-y-auto custom-scrollbar pr-4 py-20">
-                            {viewMode === 'lyrics' || viewMode === 'art' || viewMode === 'video' ? (
+                            {activeViewMode === 'lyrics' || activeViewMode === 'art' || activeViewMode === 'video' ? (
                                 <>
                                     <div className="absolute top-8 right-40 flex gap-2 p-2 bg-black/20 rounded-lg z-20">
                                         <button onClick={() => setLyricsStyle('default')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'default' ? 'bg-white/30' : 'bg-white/10'}`}>Default</button>
