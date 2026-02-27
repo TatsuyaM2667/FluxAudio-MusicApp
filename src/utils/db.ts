@@ -2,7 +2,8 @@ import { Tags } from "../types/music";
 
 const DB_NAME = "music-db";
 const STORE_NAME = "metadata";
-const DB_VERSION = 1;
+const LYRICS_STORE_NAME = "lyrics_cache";
+const DB_VERSION = 2;
 
 function openDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
@@ -11,6 +12,9 @@ function openDB(): Promise<IDBDatabase> {
             const db = (e.target as IDBOpenDBRequest).result;
             if (!db.objectStoreNames.contains(STORE_NAME)) {
                 db.createObjectStore(STORE_NAME, { keyPath: "path" });
+            }
+            if (!db.objectStoreNames.contains(LYRICS_STORE_NAME)) {
+                db.createObjectStore(LYRICS_STORE_NAME, { keyPath: "path" });
             }
         };
         request.onsuccess = () => resolve(request.result);

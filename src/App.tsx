@@ -285,7 +285,7 @@ function App() {
     handleAlbumClick
   } = useNavigation();
 
-  const currentLyrics = useLyrics(current);
+  const currentLyrics = useLyrics(current, displayQueue);
   const getAlbumArt = useAlbumArt();
 
   // Media Session Integration
