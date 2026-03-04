@@ -42,6 +42,13 @@ jobs:
           echo "Podfile found!"
           cat ios/App/Podfile
 
+      - name: Patch iOS Deployment Target to 14.0
+        run: |
+          # @capacitor/ios@8 requires iOS 14.0+ minimum deployment target
+          sed -i '' "s/platform :ios, '[0-9.]*'/platform :ios, '14.0'/" ios/App/Podfile
+          echo "Patched Podfile:"
+          grep "platform :ios" ios/App/Podfile
+
       - name: Install CocoaPods dependencies
         run: |
           cd ios/App
@@ -65,7 +72,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            PROVISIONING_PROFILE_SPECIFIER=""
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            IPHONEOS_DEPLOYMENT_TARGET=14.0
 
       - name: Package into IPA
         run: |
