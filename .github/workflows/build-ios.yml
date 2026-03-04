@@ -16,20 +16,25 @@ jobs:
           node-version: 20
 
       - name: Install Dependencies
-        run: |
-          npm ci
-          npm install @capacitor/ios@8.0.0
+        run: npm ci
+
+      - name: Install Capacitor iOS
+        run: npm install @capacitor/ios@8.0.0
 
       - name: Build Web App
         run: npm run build
 
-      - name: Sync Capacitor
-        run: npx cap sync ios
+      - name: Add iOS Platform (generates Podfile + Xcode project)
+        run: npx cap add ios
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios/App
+          pod install
 
       - name: Build Unsigned App
         run: |
           cd ios/App
-          # Build the app natively without requiring Apple Developer Certificates
           xcodebuild build \
             -workspace App.xcworkspace \
             -scheme App \
@@ -44,7 +49,6 @@ jobs:
       - name: Package into IPA
         run: |
           cd ios/App
-          # An IPA file is basically a zipped Payload folder containing the .app
           mkdir -p Payload
           cp -r build/Build/Products/Release-iphoneos/App.app Payload/
           zip -r ../../FluxAudio-iOS.ipa Payload
