@@ -4,6 +4,7 @@ import { IconLibrary, IconListMusic, IconStar, IconCloudDownload } from './Icons
 import { API_BASE } from '../config';
 import { useDownloads } from '../hooks/useDownloads';
 import { platform } from '../utils/platform';
+import { songBelongsToArtist } from '../utils/searchUtils';
 
 type LibraryViewProps = {
     songs: SongMeta[];
@@ -44,7 +45,7 @@ export function LibraryView({ songs, playlists, onAlbumClick, onPlaylistClick, g
     };
 
     const getArtistImage = (artistName: string) => {
-        const song = songs.find(s => s.tags?.artist === artistName && s.artistImage);
+        const song = songs.find(s => songBelongsToArtist(s.tags?.artist, artistName) && s.artistImage);
         return song?.artistImage ? `${API_BASE}${song.artistImage}` : null;
     };
 

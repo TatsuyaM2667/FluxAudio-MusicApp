@@ -1,0 +1,129 @@
+name: Build iOS App (Unsigned IPA)
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build iOS IPA
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Build Web App
+        run: npm run build
+
+      # -------------------------------------------------------------------
+      # Step 1: Let cap add ios generate the Xcode project + Podfile.
+      #         It will fail at pod install (wrong iOS version), but that's OK.
+      # -------------------------------------------------------------------
+      - name: Add iOS Platform (Xcode project + Podfile generation)
+        run: npx cap add ios || true
+
+      # -------------------------------------------------------------------
+      # Step 2: Show Podfile so we can debug its contents
+      # -------------------------------------------------------------------
+      - name: Show generated Podfile content
+        run: |
+          echo "=== ios/App directory listing ==="
+          ls -la ios/App/
+          echo ""
+          if [ -f ios/App/Podfile ]; then
+            echo "=== Podfile content ==="
+            cat ios/App/Podfile
+          else
+            echo "ERROR: Podfile not found!"
+            exit 1
+          fi
+
+      # -------------------------------------------------------------------
+      # Step 3: Patch the iOS deployment target to 14.0 using Python
+      #         (more robust than sed for cross-platform compatibility)
+      # -------------------------------------------------------------------
+      - name: Patch Podfile - set iOS minimum to 14.0
+        run: |
+          python3 - <<'EOF'
+          import re
+
+          podfile_path = "ios/App/Podfile"
+          with open(podfile_path, "r") as f:
+              content = f.read()
+
+          print("=== BEFORE PATCH ===")
+          for line in content.splitlines():
+              if "platform" in line.lower() or "ios" in line.lower():
+                  print(repr(line))
+
+          # Replace any 'platform :ios, X.X' line with 14.0
+          content = re.sub(
+              r"platform\s+:ios\s*,\s*['\"][\d.]+['\"]",
+              "platform :ios, '14.0'",
+              content
+          )
+
+          # If no platform line exists, add it at the top
+          if "platform :ios" not in content:
+              content = "platform :ios, '14.0'\n" + content
+
+          with open(podfile_path, "w") as f:
+              f.write(content)
+
+          print("\n=== AFTER PATCH ===")
+          for i, line in enumerate(content.splitlines(), 1):
+              if "platform" in line.lower() or "ios" in line.lower():
+                  print(f"line {i}: {repr(line)}")
+          EOF
+
+      # -------------------------------------------------------------------
+      # Step 4: Install CocoaPods dependencies with patched Podfile
+      # -------------------------------------------------------------------
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios/App
+          pod install --repo-update
+
+      # -------------------------------------------------------------------
+      # Step 5: Copy web assets (use cap copy, not cap sync which re-runs pod install)
+      # -------------------------------------------------------------------
+      - name: Copy web assets to iOS
+        run: npx cap copy ios
+
+      # -------------------------------------------------------------------
+      # Step 6: Build unsigned IPA
+      # -------------------------------------------------------------------
+      - name: Build Unsigned App
+        run: |
+          cd ios/App
+          xcodebuild build \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            IPHONEOS_DEPLOYMENT_TARGET=14.0
+
+      - name: Package into IPA
+        run: |
+          cd ios/App
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -r ../../FluxAudio-iOS.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FluxAudio-iOS-unsigned.ipa
+          path: FluxAudio-iOS.ipa

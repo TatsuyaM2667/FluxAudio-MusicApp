@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { API_BASE } from '../config';
 import { SongMeta, Picture } from '../types/music';
 import { IconPlay, IconShuffle, IconChevronLeft, IconMusic, IconStar, IconStarFilled } from './Icons';
+import { songBelongsToArtist } from '../utils/searchUtils';
 
 type ArtistViewProps = {
     artist: string;
@@ -15,9 +16,9 @@ type ArtistViewProps = {
 };
 
 export function ArtistView({ artist, songs, onBack, onPlaySong, getAlbumArt, onAlbumClick, isFavoriteArtist, onToggleFavoriteArtist }: ArtistViewProps) {
-    // Filter songs by artist
+    // Filter songs by artist (supports comma-separated artist names)
     const artistSongs = useMemo(() => {
-        return songs.filter(s => (s.tags?.artist || "Unknown Artist") === artist);
+        return songs.filter(s => songBelongsToArtist(s.tags?.artist, artist));
     }, [songs, artist]);
 
     // Group by Album
@@ -82,8 +83,8 @@ export function ArtistView({ artist, songs, onBack, onPlaySong, getAlbumArt, onA
                             <button
                                 onClick={() => onToggleFavoriteArtist(artist)}
                                 className={`w-10 h-10 backdrop-blur-md rounded-full flex items-center justify-center hover:scale-105 transition ${isFavoriteArtist
-                                        ? 'bg-yellow-500 text-white'
-                                        : 'bg-white/50 dark:bg-black/50 text-gray-700 dark:text-gray-300'
+                                    ? 'bg-yellow-500 text-white'
+                                    : 'bg-white/50 dark:bg-black/50 text-gray-700 dark:text-gray-300'
                                     }`}
                                 title={isFavoriteArtist ? 'お気に入りから削除' : 'お気に入りに追加'}
                             >

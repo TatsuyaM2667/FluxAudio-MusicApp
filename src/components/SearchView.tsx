@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { SongMeta } from '../types/music';
 import { IconMusic, IconInfo, IconLibrary } from './Icons';
+import { normalizeForSearch, fuzzyMatch, splitArtists } from '../utils/searchUtils';
 
 type SearchViewProps = {
     query: string;
@@ -17,25 +18,28 @@ export function SearchView({ query, songs, onPlaySong, onArtistClick, onAlbumCli
             return { songs: [], artists: [], albums: [] };
         }
 
-        const q = query.toLowerCase();
+        const q = normalizeForSearch(query);
 
-        // Filter Songs
+        // Filter Songs (fuzzy match on title, artist, album)
         const filteredSongs = songs.filter(s =>
-            s.tags?.title?.toLowerCase().includes(q) ||
-            s.tags?.artist?.toLowerCase().includes(q) ||
-            s.tags?.album?.toLowerCase().includes(q)
+            fuzzyMatch(s.tags?.title, q) ||
+            fuzzyMatch(s.tags?.artist, q) ||
+            fuzzyMatch(s.tags?.album, q)
         );
 
-        // Filter Artists
+        // Filter Artists — split comma-separated names into individual artists
         const artistMap = new Map<string, SongMeta>();
         songs.forEach(s => {
-            if (s.tags?.artist && !artistMap.has(s.tags.artist)) {
-                artistMap.set(s.tags.artist, s);
-            }
+            const artists = splitArtists(s.tags?.artist);
+            artists.forEach(artistName => {
+                if (!artistMap.has(artistName)) {
+                    artistMap.set(artistName, s);
+                }
+            });
         });
-        const filteredArtists = [...artistMap.values()].filter(s =>
-            s.tags?.artist?.toLowerCase().includes(q)
-        );
+        const filteredArtists = [...artistMap.entries()]
+            .filter(([name]) => fuzzyMatch(name, q))
+            .map(([name, song]) => ({ name, song }));
 
         // Filter Albums
         const albumMap = new Map<string, SongMeta>();
@@ -45,7 +49,7 @@ export function SearchView({ query, songs, onPlaySong, onArtistClick, onAlbumCli
             }
         });
         const filteredAlbums = [...albumMap.values()].filter(s =>
-            s.tags?.album?.toLowerCase().includes(q)
+            fuzzyMatch(s.tags?.album, q)
         );
 
         return { songs: filteredSongs, artists: filteredArtists, albums: filteredAlbums };
@@ -68,20 +72,20 @@ export function SearchView({ query, songs, onPlaySong, onArtistClick, onAlbumCli
                         <div>
                             <h2 className="text-2xl font-bold mb-4">Artists</h2>
                             <div className="flex flex-col gap-2">
-                                {results.artists.slice(0, 5).map(artistSong => (
+                                {results.artists.slice(0, 5).map(({ name, song }) => (
                                     <div
-                                        key={artistSong.tags?.artist}
+                                        key={name}
                                         className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 cursor-pointer transition group"
-                                        onClick={() => onArtistClick(artistSong.tags?.artist || 'Unknown')}
+                                        onClick={() => onArtistClick(name)}
                                     >
                                         <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 dark:bg-white/10 shrink-0 flex items-center justify-center">
-                                            {artistSong.artistImage ? (
-                                                <img src={artistSong.artistImage} alt={artistSong.tags?.artist} className="w-full h-full object-cover" />
+                                            {song.artistImage ? (
+                                                <img src={song.artistImage} alt={name} className="w-full h-full object-cover" />
                                             ) : (
                                                 <IconInfo className="text-gray-400" />
                                             )}
                                         </div>
-                                        <div className="font-bold truncate">{artistSong.tags?.artist}</div>
+                                        <div className="font-bold truncate">{name}</div>
                                     </div>
                                 ))}
                             </div>
