@@ -1,11 +1,13 @@
 {
     "name": "FluxAudio",
     "short_name": "FluxAudio",
-    "description": "A music streaming application",
+    "description": "A music streaming application with offline support",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#1a1a2e",
     "theme_color": "#1a1a2e",
+    "orientation": "any",
+    "categories": ["music", "entertainment"],
     "icons": [
         {
             "src": "/favicon-16.png",

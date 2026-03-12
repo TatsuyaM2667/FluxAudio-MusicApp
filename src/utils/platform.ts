@@ -28,6 +28,25 @@ export const platform = {
      * Get current platform name
      */
     getPlatform: () => Capacitor.getPlatform(),
+
+    /**
+     * Check if running as an installed PWA (Add to Home Screen)
+     */
+    isPwa: (): boolean => {
+        if (Capacitor.isNativePlatform()) return false;
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+        const isIosStandalone = (navigator as any).standalone === true;
+        return isStandalone || isIosStandalone;
+    },
+
+    /**
+     * Check if downloads are supported on the current platform.
+     * Native: always. Web/PWA: if IndexedDB is available.
+     */
+    isDownloadSupported: (): boolean => {
+        if (Capacitor.isNativePlatform()) return true;
+        return typeof indexedDB !== 'undefined';
+    },
 };
 
 export default platform;

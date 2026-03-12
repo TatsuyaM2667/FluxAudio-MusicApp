@@ -1,5 +1,5 @@
 import { fetchLyrics } from '../api';
-import { downloadService } from './DownloadService';
+import { downloadManager } from './DownloadManager';
 
 /**
  * LyricsCache — In-memory + persistent cache for lyrics (.lrc) content.
@@ -182,9 +182,9 @@ class LyricsCacheService {
         }
 
         // 4. Offline local file (downloaded songs)
-        if (downloadService.isDownloaded(songPath)) {
+        if (downloadManager.isDownloaded(songPath)) {
             try {
-                const localLrc = await downloadService.getOfflineLrc(songPath);
+                const localLrc = await downloadManager.getOfflineLrc(songPath);
                 if (localLrc) {
                     const entry = { lrc: localLrc, lrcPath };
                     this.cache.set(songPath, entry);

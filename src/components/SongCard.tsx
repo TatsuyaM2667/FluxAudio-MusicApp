@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { SongMeta } from "../types/music";
 import { IconMusic, IconPlay, IconPause, IconHeart, IconHeartFilled, IconMoreHorizontal, IconInfo, IconListMusic, IconTrash, IconCloudDownload, IconCheck } from "./Icons";
 import { useDownloads } from "../hooks/useDownloads";
-import { downloadService } from "../services/DownloadService";
+import { downloadManager } from "../services/DownloadManager";
 import { platform } from "../utils/platform";
+import { useAppNotifications } from "../contexts/NotificationContext";
 
 type SongCardProps = {
     song: SongMeta;
@@ -24,7 +25,8 @@ export function SongCard({ song, isCurrent, isPlaying, isFavorite, onToggleFavor
     const [isDownloading, setIsDownloading] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const { isDownloaded } = useDownloads();
-    const isNative = platform.isNative();
+    const { addNotification } = useAppNotifications();
+    const canDownload = platform.isDownloadSupported();
     const downloaded = isDownloaded(song.path);
 
     const art = song.tags?.picture ? getAlbumArt(song.tags.picture) : null;
@@ -35,11 +37,27 @@ export function SongCard({ song, isCurrent, isPlaying, isFavorite, onToggleFavor
     const handleDownload = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (downloaded || isDownloading) return;
+
+        let withVideo = false;
+        if (song.videoPath) {
+            withVideo = window.confirm('この曲にはミュージックビデオがあります。\nミュージックビデオも一緒にダウンロードしますか？\n(キャンセルを押すと音声のみダウンロードします)');
+        }
+
         setIsDownloading(true);
         try {
-            await downloadService.downloadSong(song);
+            await downloadManager.downloadSong(song, withVideo);
+            addNotification({
+                title: 'ダウンロード完了',
+                message: `${title} がオフラインで再生可能になりました`,
+                type: 'success'
+            });
         } catch (err) {
             console.error('Download failed', err);
+            addNotification({
+                title: 'ダウンロード失敗',
+                message: `${title} のダウンロードに失敗しました`,
+                type: 'error'
+            });
         } finally {
             setIsDownloading(false);
         }
@@ -81,14 +99,14 @@ export function SongCard({ song, isCurrent, isPlaying, isFavorite, onToggleFavor
                 )}
 
                 {/* Downloaded Indicator (top-left) */}
-                {isNative && downloaded && (
+                {canDownload && downloaded && (
                     <div className="absolute top-2 left-2 bg-green-500 text-white rounded-full p-1 shadow-md">
                         <IconCheck size={12} />
                     </div>
                 )}
 
                 {/* Download Button (top-left, shown when not downloaded) */}
-                {isNative && !downloaded && (
+                {canDownload && !downloaded && (
                     <button
                         onClick={handleDownload}
                         disabled={isDownloading}
@@ -135,17 +153,6 @@ export function SongCard({ song, isCurrent, isPlaying, isFavorite, onToggleFavor
                     >
                         <IconMoreHorizontal size={20} />
                     </button>
-                    {/* Favorite - moved slightly or kept same, but More button is primary for actions now? 
-                        Let's keep Favorite visible as it's common.
-                    */}
-                    {/* 
-                    <button
-                        onClick={onToggleFavorite}
-                        className={`text-gray-400 hover:text-white transition-transform hover:scale-110 ${isFavorite ? 'text-green-500' : ''}`}
-                    >
-                        {isFavorite ? <IconHeartFilled size={20} /> : <IconHeart size={20} />}
-                    </button>
-                    */}
                 </div>
             </div>
 
@@ -193,7 +200,7 @@ export function SongCard({ song, isCurrent, isPlaying, isFavorite, onToggleFavor
                     >
                         <IconListMusic size={16} /> プレイリストに追加
                     </button>
-                    {isNative && (
+                    {canDownload && (
                         <button
                             className={`w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-[#333] transition text-left ${downloaded ? 'text-green-400' : 'text-white'
                                 }`}
@@ -202,7 +209,7 @@ export function SongCard({ song, isCurrent, isPlaying, isFavorite, onToggleFavor
                                 e.stopPropagation();
                                 if (downloaded) {
                                     // Remove download
-                                    await downloadService.deleteSong(song.path);
+                                    await downloadManager.deleteSong(song.path);
                                 } else {
                                     // Download
                                     handleDownload(e);

@@ -1,9 +1,9 @@
 import { useRef, useEffect } from "react";
 import { IconBell, IconMusic } from "./Icons";
-import { useNewSongNotifications } from "../hooks/useNewSongNotifications";
+import { AppNotification } from "../contexts/NotificationContext";
 
 interface NotificationDropdownProps {
-    notifications: ReturnType<typeof useNewSongNotifications>['notifications'];
+    notifications: AppNotification[];
     markAsRead: (id: string) => void;
     markAllAsRead: () => void;
     clearNotifications: () => void;
@@ -72,20 +72,33 @@ export function NotificationDropdown({
                             className={`p-4 border-b border-gray-50 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/5 transition flex gap-3 cursor-pointer ${!n.read ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
                             onClick={() => {
                                 markAsRead(n.id);
-                                onPlaySong(n.songPath);
+                                if (n.actionPath) onPlaySong(n.actionPath);
                                 onClose();
                             }}
                         >
-                            <div className="w-12 h-12 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center shrink-0">
-                                <IconMusic className="text-gray-400" />
+                            <div className={`w-12 h-12 rounded flex items-center justify-center shrink-0 
+                                ${n.type === 'success' ? 'bg-green-100 dark:bg-green-900/40 text-green-500' :
+                                  n.type === 'error' ? 'bg-red-100 dark:bg-red-900/40 text-red-500' :
+                                  n.type === 'new_song' ? 'bg-pink-100 dark:bg-pink-900/40 text-pink-500' :
+                                  'bg-gray-200 dark:bg-gray-700 text-gray-500'
+                                }`}
+                            >
+                                <IconMusic />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start mb-1">
-                                    <p className="text-xs font-bold text-pink-500 uppercase">New Song</p>
+                                    <p className={`text-xs font-bold uppercase ${
+                                        n.type === 'success' ? 'text-green-500' :
+                                        n.type === 'error' ? 'text-red-500' :
+                                        n.type === 'new_song' ? 'text-pink-500' :
+                                        'text-gray-500'
+                                    }`}>
+                                        {n.type === 'new_song' ? 'New Song' : n.type}
+                                    </p>
                                     <span className="text-[10px] text-gray-400">{new Date(n.date).toLocaleDateString()}</span>
                                 </div>
-                                <p className="font-medium text-black dark:text-white truncate">{n.songTitle}</p>
-                                <p className="text-xs text-gray-500 truncate">{n.artist} • {n.album}</p>
+                                <p className="font-medium text-black dark:text-white truncate">{n.title}</p>
+                                <p className="text-xs text-gray-500 truncate">{n.message}</p>
                             </div>
                             {!n.read && <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 shrink-0"></div>}
                         </div>

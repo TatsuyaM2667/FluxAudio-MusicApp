@@ -3,7 +3,7 @@ import { SongMeta } from '../types/music';
 import { fetchSongs, fetchMetadataBlob } from '../api';
 import { getCachedMetadata, cacheMetadata } from '../utils/db';
 import { useOffline } from './useOffline';
-import { downloadService } from '../services/DownloadService';
+import { downloadManager } from '../services/DownloadManager';
 import { platform } from '../utils/platform';
 import { lyricsCache } from '../services/LyricsCache';
 
@@ -27,15 +27,15 @@ export function useSongs() {
             console.log(`[useSongs] Starting load. isOffline=${isOffline}, isNative=${platform.isNative()}`);
 
             // If offline on native platform, try to load downloaded songs first
-            if (isOffline && platform.isNative()) {
+            if (isOffline && platform.isDownloadSupported()) {
                 console.log('[useSongs] Offline mode detected, loading downloaded songs...');
                 try {
-                    // Ensure DownloadService is fully initialized
-                    await downloadService.init();
-                    console.log('[useSongs] DownloadService initialized');
+                    // Ensure DownloadManager is fully initialized
+                    await downloadManager.init();
+                    console.log('[useSongs] DownloadManager initialized');
 
-                    const downloadedSongs = downloadService.getDownloadedSongs();
-                    console.log(`[useSongs] Got ${downloadedSongs.length} downloaded songs from service`);
+                    const downloadedSongs = downloadManager.getDownloadedSongs();
+                    console.log(`[useSongs] Got ${downloadedSongs.length} downloaded songs from manager`);
 
                     if (downloadedSongs.length > 0) {
                         console.log(`[useSongs] ✅ Offline mode: Loading ${downloadedSongs.length} downloaded songs`);
@@ -137,10 +137,10 @@ export function useSongs() {
                 console.error("Failed to fetch song list", err);
 
                 // Fallback to downloaded songs on native platform when network fails
-                if (platform.isNative()) {
+                if (platform.isDownloadSupported()) {
                     try {
-                        await downloadService.init();
-                        const downloadedSongs = downloadService.getDownloadedSongs();
+                        await downloadManager.init();
+                        const downloadedSongs = downloadManager.getDownloadedSongs();
                         if (downloadedSongs.length > 0) {
                             console.log(`[useSongs] Network error fallback: Loading ${downloadedSongs.length} downloaded songs`);
                             setSongs(downloadedSongs);

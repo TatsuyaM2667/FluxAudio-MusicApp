@@ -145,12 +145,12 @@ export function LibraryView({ songs, playlists, onAlbumClick, onPlaylistClick, g
             ) : (
                 <>
                     {/* Playlists Section */}
-                    {(playlists.length > 0 || (platform.isNative() && downloadedSongs.length > 0)) && (
+                    {(playlists.length > 0 || (platform.isDownloadSupported() && downloadedSongs.length > 0)) && (
                         <div className="mb-8">
                             <h2 className="text-2xl md:text-3xl font-bold text-black dark:text-white tracking-tight mb-6">プレイリスト</h2>
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
                                 {/* Downloaded Songs Card */}
-                                {platform.isNative() && downloadedSongs.length > 0 && (
+                                {platform.isDownloadSupported() && downloadedSongs.length > 0 && (
                                     <div
                                         className="flex flex-col gap-2 cursor-pointer group"
                                         onClick={() => onPlaylistClick('downloaded')}

@@ -9,7 +9,7 @@ import { SongCard } from './SongCard';
 import { IconHeartFilled, IconListMusic, IconSearch, IconCloudDownload, IconCheck } from './Icons';
 import { getPageTitle } from '../hooks/useAlbumArt';
 import { platform } from '../utils/platform';
-import { downloadService } from '../services/DownloadService';
+import { downloadManager } from '../services/DownloadManager';
 import { useDownloads } from '../hooks/useDownloads';
 import { useState } from 'react';
 import { useOffline } from '../hooks/useOffline';
@@ -82,15 +82,17 @@ export function MainContent({
     const [downloading, setDownloading] = useState(false);
     const isOffline = useOffline();
 
+    const canDownload = platform.isDownloadSupported();
+
     const handleDownloadAll = async (targetSongs: SongMeta[]) => {
         if (downloading) return;
         setDownloading(true);
-        downloadService.setTotalToDownload(targetSongs.length);
+        downloadManager.setTotalToDownload(targetSongs.length);
         for (const song of targetSongs) {
-            await downloadService.downloadSong(song);
+            await downloadManager.downloadSong(song);
         }
         setDownloading(false);
-        downloadService.setTotalToDownload(0);
+        downloadManager.setTotalToDownload(0);
     };
 
     // Artist View
@@ -178,7 +180,7 @@ export function MainContent({
                         <h2 className="text-2xl md:text-3xl font-bold text-black dark:text-white tracking-tight">
                             {isOffline && view === 'home' ? 'ダウンロード済み' : getPageTitle(view)}
                         </h2>
-                        {view === 'favorites' && platform.isNative() && displaySongs.length > 0 && (
+                        {view === 'favorites' && canDownload && displaySongs.length > 0 && (
                             (() => {
                                 const downloadedCount = displaySongs.filter(s => isDownloaded(s.path)).length;
                                 const isAll = downloadedCount === displaySongs.length;

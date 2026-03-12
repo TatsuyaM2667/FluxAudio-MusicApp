@@ -3,7 +3,7 @@ import { SongMeta, Playlist } from '../types/music';
 import { SongCard } from './SongCard';
 import { IconChevronLeft, IconCloudDownload, IconCheck } from './Icons';
 import { platform } from '../utils/platform';
-import { downloadService } from '../services/DownloadService';
+import { downloadManager } from '../services/DownloadManager';
 import { useDownloads } from '../hooks/useDownloads';
 import { useState } from 'react';
 
@@ -61,7 +61,7 @@ export function PlaylistView({
         setDownloading(true);
         // Sequential download to avoid overwhelming
         for (const song of playlistSongs) {
-            await downloadService.downloadSong(song);
+            await downloadManager.downloadSong(song);
         }
         setDownloading(false);
     };
@@ -108,14 +108,14 @@ export function PlaylistView({
                             <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight">{playlist.name}</h1>
                             <div className="text-sm opacity-80 mb-4">
                                 {playlistSongs.length} {playlistSongs.length === 1 ? 'song' : 'songs'}
-                                {platform.isNative() && (
+                                {platform.isDownloadSupported() && (
                                     <span className="ml-2 opacity-70">
                                         • {playlistDownloadedCount} downloaded
                                     </span>
                                 )}
                             </div>
 
-                            {platform.isNative() && (
+                            {platform.isDownloadSupported() && (
                                 <button
                                     onClick={handleDownloadAll}
                                     disabled={isAllDownloaded || downloading}

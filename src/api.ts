@@ -1,6 +1,6 @@
 import { API_BASE } from "./config";
 import { SongMetadataJson, Playlist } from "./types/music";
-import { downloadService } from './services/DownloadService';
+import { downloadManager } from './services/DownloadManager';
 import { platform } from './utils/platform';
 
 // Retry helper function
@@ -13,12 +13,18 @@ async function fetchWithRetry<T>(
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error("Offline");
+      }
       return await fetchFn();
     } catch (error) {
       lastError = error as Error;
       console.warn(`Attempt ${attempt}/${maxRetries} failed:`, error);
 
       if (attempt < maxRetries) {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            throw error;
+        }
         await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
       }
     }
@@ -145,11 +151,11 @@ export async function fetchSongs(): Promise<SongMetadataJson[]> {
     }, 3, 5000);
   } catch (e) {
     console.warn("Failed to fetch songs from server, trying offline storage...", e);
-    if (platform.isNative()) {
+    if (platform.isDownloadSupported()) {
       // Initialize service just in case
       try {
-        await downloadService.init();
-        const downloaded = downloadService.getDownloadedSongs();
+        await downloadManager.init();
+        const downloaded = downloadManager.getDownloadedSongs();
         if (downloaded.length > 0) {
           console.log("Loaded songs from offline storage:", downloaded.length);
           // Map internal SongMeta back to JSON structure expected by app
@@ -160,6 +166,7 @@ export async function fetchSongs(): Promise<SongMetadataJson[]> {
             album: d.tags?.album,
             cover: d.tags?.picture,
             lrc: d.lrcPath?.replace('offline:', ''),
+            video: d.videoPath?.replace('offline:', ''),
             artistImage: d.artistImage
           })) as unknown as SongMetadataJson[];
         }

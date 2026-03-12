@@ -11,6 +11,7 @@ export interface DownloadedEntry {
     localAudioPath: string; // Local filename e.g. "timestamp-song.mp3"
     localLrcPath?: string | null;
     localCoverPath?: string | null;
+    localVideoPath?: string | null;
     tags?: any; // Store partial tags for offline reconstruction
     artistImage?: string;
     downloadedAt: number;
@@ -137,6 +138,7 @@ class DownloadService {
                 tags: entry.tags || { title: entry.originalPath.split('/').pop() },
                 loaded: true,
                 lrcPath: entry.localLrcPath ? `offline:${entry.localLrcPath}` : null, // Handle offline LRC properly if needed, but for now just indicator
+                videoPath: entry.localVideoPath ? `offline:${entry.localVideoPath}` : undefined,
                 artistImage: entry.artistImage
             };
         });
@@ -170,6 +172,18 @@ class DownloadService {
 
         const ret = await Filesystem.getUri({
             path: `${AUDIO_DIR}/${entry.localAudioPath}`,
+            directory: Directory.Data
+        });
+
+        return Capacitor.convertFileSrc(ret.uri);
+    }
+
+    async getOfflineVideo(path: string): Promise<string | null> {
+        const entry = this.downloadedMap.get(path);
+        if (!entry || !entry.localVideoPath) return null;
+
+        const ret = await Filesystem.getUri({
+            path: `${AUDIO_DIR}/${entry.localVideoPath}`,
             directory: Directory.Data
         });
 
@@ -221,7 +235,7 @@ class DownloadService {
         });
     }
 
-    async downloadSong(song: SongMeta): Promise<void> {
+    async downloadSong(song: SongMeta, withVideo: boolean = false): Promise<void> {
         if (!this.initialized) await this.init();
         if (this.isDownloaded(song.path)) return; // Already downloaded
 
@@ -267,10 +281,24 @@ class DownloadService {
                 }
             }
 
+            let videoFilename: string | null = null;
+            if (withVideo && song.videoPath) {
+                const videoUrl = song.videoPath.startsWith('http') ? song.videoPath : `${API_BASE}${song.videoPath}`;
+                try {
+                    const safeVideoName = song.videoPath.split('/').pop()?.replace(/[^a-zA-Z0-9.-]/g, '_') || `video_${timestamp}`;
+                    videoFilename = `${timestamp}_${safeVideoName}`;
+                    await this.downloadFile(videoUrl, videoFilename);
+                } catch (e) {
+                    console.warn("Failed to download Video", e);
+                    videoFilename = null;
+                }
+            }
+
             const entry: DownloadedEntry = {
                 originalPath: song.path,
                 localAudioPath: audioFilename,
                 localLrcPath: lrcFilename,
+                localVideoPath: videoFilename,
                 tags: song.tags,
                 artistImage: song.artistImage,
                 downloadedAt: timestamp
@@ -300,6 +328,12 @@ class DownloadService {
             if (entry.localLrcPath) {
                 await Filesystem.deleteFile({
                     path: `${AUDIO_DIR}/${entry.localLrcPath}`,
+                    directory: Directory.Data
+                });
+            }
+            if (entry.localVideoPath) {
+                await Filesystem.deleteFile({
+                    path: `${AUDIO_DIR}/${entry.localVideoPath}`,
                     directory: Directory.Data
                 });
             }

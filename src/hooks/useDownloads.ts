@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { downloadService } from '../services/DownloadService';
+import { downloadManager } from '../services/DownloadManager';
 
 export function useDownloads() {
     // Start with empty set, will be populated after init
     const [downloadedPaths, setDownloadedPaths] = useState<Set<string>>(new Set());
-    const [progress, setProgress] = useState(downloadService.progress);
+    const [progress, setProgress] = useState(downloadManager.progress);
     const [isReady, setIsReady] = useState(false);
 
     useEffect(() => {
@@ -13,12 +13,12 @@ export function useDownloads() {
         // Ensure service is initialized before reading state
         const initAndSync = async () => {
             try {
-                await downloadService.init();
+                await downloadManager.init();
                 if (isMounted) {
-                    const paths = downloadService.getDownloadedPaths();
+                    const paths = downloadManager.getDownloadedPaths();
                     console.log('[useDownloads] Initialized with', paths.length, 'downloaded songs');
                     setDownloadedPaths(new Set(paths));
-                    setProgress(downloadService.progress);
+                    setProgress(downloadManager.progress);
                     setIsReady(true);
                 }
             } catch (e) {
@@ -31,14 +31,14 @@ export function useDownloads() {
 
         const update = () => {
             if (isMounted) {
-                const paths = downloadService.getDownloadedPaths();
+                const paths = downloadManager.getDownloadedPaths();
                 console.log('[useDownloads] Update triggered, paths:', paths.length);
                 setDownloadedPaths(new Set(paths));
-                setProgress(downloadService.progress);
+                setProgress(downloadManager.progress);
             }
         };
 
-        const cleanup = downloadService.addListener(update);
+        const cleanup = downloadManager.addListener(update);
 
         return () => {
             isMounted = false;

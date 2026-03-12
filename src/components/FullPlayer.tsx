@@ -10,6 +10,7 @@ import { LyricsView } from "./LyricsView";
 import { getDominantColor } from "../utils/colors";
 import { motion, AnimatePresence, PanInfo, useAnimation, useMotionValue, useTransform } from "framer-motion";
 import { API_BASE } from "../config";
+import { downloadManager } from "../services/DownloadManager";
 
 type FullPlayerProps = {
     current: SongMeta;
@@ -82,6 +83,23 @@ export function FullPlayer({
     // The actual display mode — falls back to 'art' when video is not active for this song
     const activeViewMode = isVideoViewActive ? 'video' : (viewMode === 'video' ? 'art' : viewMode);
 
+    const [offlineVideoUrl, setOfflineVideoUrl] = useState<string | null>(null);
+
+    // Fetch offline video URL when a video becomes active
+    useEffect(() => {
+        let isMounted = true;
+        if (isVideoViewActive && current.path) {
+            downloadManager.getOfflineVideo(current.path).then((url) => {
+                if (isMounted && url) {
+                    setOfflineVideoUrl(url);
+                }
+            });
+        }
+        return () => {
+            isMounted = false;
+        };
+    }, [isVideoViewActive, current.path]);
+
     // Video time tracking — so seekbar syncs with video when in video mode
     const [videoCurrentTime, setVideoCurrentTime] = useState(0);
     const [videoDuration, setVideoDuration] = useState(0);
@@ -118,6 +136,7 @@ export function FullPlayer({
         prevPathRef.current = current.path;
         setVideoCurrentTime(0);
         setVideoDuration(0);
+        setOfflineVideoUrl(null); // Reset offline video url
     }
 
     // Sync video playback state with app's isPlaying state
@@ -374,7 +393,7 @@ export function FullPlayer({
                                 <video
                                     ref={mobileVideoRef}
                                     key={`mobile-video-${current.path}`}
-                                    src={`${API_BASE}${current.videoPath}`}
+                                    src={offlineVideoUrl || `${API_BASE}${current.videoPath}`}
                                     className="w-full h-full object-contain"
                                     playsInline
                                     autoPlay={isPlaying}
@@ -573,7 +592,7 @@ export function FullPlayer({
                                 <video
                                     ref={desktopVideoRef}
                                     key={`desktop-video-${current.path}`}
-                                    src={`${API_BASE}${current.videoPath}`}
+                                    src={offlineVideoUrl || `${API_BASE}${current.videoPath}`}
                                     className="w-full h-full object-cover cursor-pointer"
                                     autoPlay={isPlaying}
                                     onClick={togglePlay}

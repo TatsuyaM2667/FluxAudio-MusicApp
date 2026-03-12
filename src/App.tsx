@@ -12,6 +12,7 @@ import { useFavorites } from "./hooks/useFavorites";
 import { useFavoriteArtists } from "./hooks/useFavoriteArtists";
 import { useFavoriteAlbums } from "./hooks/useFavoriteAlbums";
 import { useNewSongNotifications } from "./hooks/useNewSongNotifications";
+import { useAppNotifications } from "./contexts/NotificationContext";
 import { useTheme } from "./hooks/useTheme";
 import { usePlaylists } from "./hooks/usePlaylists";
 import { useNavigation } from "./hooks/useNavigation";
@@ -19,7 +20,7 @@ import { useLyrics } from "./hooks/useLyrics";
 import { useMediaSession } from "./hooks/useMediaSession";
 import { useAlbumArt } from "./hooks/useAlbumArt";
 import { useOffline } from "./hooks/useOffline";
-import { downloadService } from "./services/DownloadService";
+import { downloadManager } from "./services/DownloadManager";
 import { platform } from "./utils/platform";
 
 // Auth
@@ -62,14 +63,18 @@ function App() {
         console.warn("SplashScreen hide failed", e);
       }
 
-      // Initialize DownloadService early on native platform
-      if (platform.isNative()) {
-        console.log('[App] Initializing DownloadService early...');
+      // Initialize DownloadManager early
+      if (platform.isDownloadSupported()) {
+        console.log('[App] Initializing DownloadManager...');
         try {
-          await downloadService.init();
-          console.log('[App] DownloadService initialized successfully');
+          await downloadManager.init();
+          console.log('[App] DownloadManager initialized successfully');
+          // Request persistent storage for PWA to prevent data eviction
+          if (!platform.isNative()) {
+            downloadManager.requestPersistentStorage();
+          }
         } catch (e) {
-          console.error('[App] DownloadService init failed:', e);
+          console.error('[App] DownloadManager init failed:', e);
         }
       }
 
@@ -155,33 +160,43 @@ function App() {
   const [audioSrc, setAudioSrc] = useState<{ url: string | undefined, path: string | null }>({ url: undefined, path: null });
 
   useEffect(() => {
+    let currentBlobUrl: string | null = null;
+    let isActive = true;
+
     const resolveSrc = async () => {
       if (!current) {
-        setAudioSrc({ url: undefined, path: null });
+        if (isActive) setAudioSrc({ url: undefined, path: null });
         return;
       }
 
-      // For native platform, prioritize downloaded songs to save mobile data
-      if (platform.isNative()) {
+      // For any platform with download support, prioritize downloaded songs
+      if (platform.isDownloadSupported()) {
         try {
-          // Ensure DownloadService is initialized before checking
-          await downloadService.init();
+          // Ensure DownloadManager is initialized before checking
+          await downloadManager.init();
 
-          const isDownloaded = downloadService.isDownloaded(current.path);
+          const isDownloaded = downloadManager.isDownloaded(current.path);
           console.log('[App resolveSrc] Song:', current.tags?.title, 'Downloaded:', isDownloaded);
 
           if (isDownloaded) {
-            const localUrl = await downloadService.getOfflineUrl(current.path);
-            if (localUrl) {
+            const localUrl = await downloadManager.getOfflineUrl(current.path);
+            if (localUrl && isActive) {
               console.log('[App resolveSrc] Using local file for:', current.tags?.title);
+              if (localUrl.startsWith('blob:')) {
+                currentBlobUrl = localUrl;
+              }
               setAudioSrc({ url: localUrl, path: current.path });
               return;
+            } else if (localUrl && !isActive && localUrl.startsWith('blob:')) {
+              URL.revokeObjectURL(localUrl);
             }
           }
         } catch (e) {
           console.warn('[App resolveSrc] Error checking download:', e);
         }
       }
+
+      if (!isActive) return;
 
       // If offline and song is not downloaded, can't play
       if (isOffline) {
@@ -198,6 +213,14 @@ function App() {
       });
     };
     resolveSrc();
+
+    return () => {
+      isActive = false;
+      if (currentBlobUrl) {
+        console.log('[App resolveSrc] Revoking blob URL for:', current?.tags?.title || 'Unknown');
+        URL.revokeObjectURL(currentBlobUrl);
+      }
+    };
   }, [current, isOffline]);
 
   // Calculate display queue for FullPlayer
@@ -232,13 +255,16 @@ function App() {
   const { toggleFavoriteArtist, isFavoriteArtist, getFavoriteArtistNames } = useFavoriteArtists();
   const { favoriteAlbums, toggleFavoriteAlbum, isFavoriteAlbum } = useFavoriteAlbums();
 
+  // This now just runs the effect to check for new songs
+  useNewSongNotifications(songs, getFavoriteArtistNames(), favoriteAlbums);
+
   const {
     notifications,
     unreadCount,
     markAsRead,
     markAllAsRead,
     clearNotifications
-  } = useNewSongNotifications(songs, getFavoriteArtistNames(), favoriteAlbums);
+  } = useAppNotifications();
 
   const [showNotifications, setShowNotifications] = useState(false);
 
