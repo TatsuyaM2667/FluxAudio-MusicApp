@@ -377,7 +377,7 @@ function App() {
   };
 
   // Filtering Logic
-  const getFilteredSongs = () => {
+  const getFilteredSongs = useCallback(() => {
     let result = songs;
 
     if (view === 'favorites') {
@@ -386,10 +386,10 @@ function App() {
 
     // 検索は検索ビューでのみ行うので、ここでは検索フィルタリングしない
     return result;
-  };
+  }, [songs, view, favorites]);
 
-  const displaySongs = getFilteredSongs();
-  const bgImage = current?.tags?.picture ? getAlbumArt(current.tags.picture) : null;
+  const displaySongs = useMemo(() => getFilteredSongs(), [getFilteredSongs]);
+  const bgImage = useMemo(() => current?.tags?.picture ? getAlbumArt(current.tags.picture) : null, [current?.tags?.picture, getAlbumArt]);
 
   return (
     <div className="flex h-screen w-full bg-gray-50 dark:bg-black text-black dark:text-white overflow-hidden font-sans select-none relative transition-colors duration-300 safe-area-all">

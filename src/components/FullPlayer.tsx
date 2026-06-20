@@ -159,13 +159,10 @@ export function FullPlayer({
         }
     }, [isPlaying, isVideoViewActive]);
 
-    // Framer Motion values for interactive drag
+    // Framer Motion values for interactive drag (simplified for performance)
     const y = useMotionValue(0);
-    const x = useMotionValue(0);
     const opacity = useTransform(y, [0, 300], [1, 0.4]);
     const scale = useTransform(y, [0, 300], [1, 0.9]);
-    const rotateX = useTransform(y, [0, 500], [0, 15]);
-    const rotateZ = useTransform(x, [-250, 250], [-15, 15]);
     const controls = useAnimation();
 
     // Auto-scroll to Up Next when queue view opens
@@ -234,23 +231,19 @@ export function FullPlayer({
         }
     };
 
-    // Smooth Drag to close
+    // Smooth Drag to close (Y-axis only for performance)
     const handleDragEnd = (_: any, info: PanInfo) => {
         const yThreshold = 100;
-        const yVelocityThreshold = 500; // Increased threshold for a more deliberate swipe
+        const yVelocityThreshold = 500;
 
         if (info.offset.y > yThreshold || info.velocity.y > yVelocityThreshold) {
-            // Animate out with velocity
             controls.start({
                 y: "100%",
-                transition: { type: "spring", stiffness: 400, damping: 40, mass: 0.8 }
+                transition: { duration: 0.25, ease: [0.32, 0.72, 0, 1] }
             }).then(onClose);
         } else {
-            // Snap back to center
             controls.start({
                 y: 0,
-                x: 0,
-                rotateZ: 0, // Reset rotation
                 transition: { type: "spring", stiffness: 400, damping: 40, mass: 0.8 }
             });
         }
@@ -271,33 +264,31 @@ export function FullPlayer({
             <motion.div
                 initial={{ y: "100%" }}
                 animate={controls}
-                exit={{ y: "100%", transition: { type: "spring", stiffness: 400, damping: 50 } }}
+                exit={{ y: "100%", transition: { duration: 0.25, ease: [0.32, 0.72, 0, 1] } }}
                 transition={{ type: "spring", stiffness: 350, damping: 40, mass: 0.9 }}
                 style={{
                     y,
-                    x,
                     opacity,
                     scale,
-                    rotateX,
-                    rotateZ,
                     background: `linear-gradient(to bottom, ${bgColor}, #000000)`
                 }}
-                drag
-                dragConstraints={{ top: 0, left: 0, right: 0, bottom: 0 }}
-                dragElastic={{ top: 0.05, bottom: 0.5, left: 0.5, right: 0.5 }}
+                drag="y"
+                dragConstraints={{ top: 0, bottom: 0 }}
+                dragElastic={{ top: 0.05, bottom: 0.5 }}
                 onDragEnd={handleDragEnd}
                 className="fixed inset-0 z-[60] flex flex-col text-white overflow-hidden font-sans touch-none"
             >
-                {/* Blurred Background Art */}
+                {/* Blurred Background Art (reduced blur for performance) */}
                 {art && (
                     <div
-                        className="absolute inset-0 z-[-1] opacity-30 select-none pointer-events-none"
+                        className="absolute inset-0 z-[-1] opacity-25 select-none pointer-events-none"
                         style={{
                             backgroundImage: `url(${art})`,
                             backgroundSize: 'cover',
                             backgroundPosition: 'center',
-                            filter: 'blur(30px) saturate(1.8)',
-                            transform: 'scale(1.2)'
+                            filter: 'blur(20px) saturate(1.4)',
+                            transform: 'scale(1.1)',
+                            willChange: 'filter',
                         }}
                     />
                 )}

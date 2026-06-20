@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import { SongMeta } from "../types/music";
 import { IconMusic, IconPlay, IconPause, IconHeart, IconHeartFilled, IconMoreHorizontal, IconInfo, IconListMusic, IconTrash, IconCloudDownload, IconCheck } from "./Icons";
 import { useDownloads } from "../hooks/useDownloads";
@@ -20,7 +20,7 @@ type SongCardProps = {
     onDelete?: (song: SongMeta) => void;
 };
 
-export function SongCard({ song, isCurrent, isPlaying, isFavorite, onToggleFavorite, onClick, getAlbumArt, onArtistClick, onPlayNext, onAddToPlaylist, onDelete }: SongCardProps) {
+export const SongCard = memo(function SongCard({ song, isCurrent, isPlaying, isFavorite, onToggleFavorite, onClick, getAlbumArt, onArtistClick, onPlayNext, onAddToPlaylist, onDelete }: SongCardProps) {
     const [showMenu, setShowMenu] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -251,4 +251,4 @@ export function SongCard({ song, isCurrent, isPlaying, isFavorite, onToggleFavor
             )}
         </div>
     );
-}
+});

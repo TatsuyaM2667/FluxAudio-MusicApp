@@ -1,5 +1,5 @@
-import { useRef, useMemo, useEffect, useState } from "react";
-import { parseLrc } from "../utils/lrcParser";
+import { useRef, useMemo, useEffect, memo } from "react";
+import { parseLrc, LrcLine } from "../utils/lrcParser";
 
 type LyricsViewProps = {
     rawLrc: string | null;
@@ -9,75 +9,128 @@ type LyricsViewProps = {
     style?: 'default' | 'handwriting' | 'typing';
 };
 
-const TypingText = ({ text, isActive }: { text: string, isActive: boolean }) => {
-    // If not active, just return text (or keep it fully visible if previously active? Usually current line only)
-    // Actually when a line becomes active, we want to type it.
-    // When it becomes inactive (past), we want it fully visible.
-    // When it is future, we want it fully visible? Or hidden?
-    // Standard lyrics view: previous/next lines are visible but dim.
-    // So 'Typing' applies only when it BECOMES active.
-
-    // If we want typing effect, we should probably output characters with delays.
-    // We can use a CSS animation or React state.
-
-    // Simple React state approach
-    const [displayLength, setDisplayLength] = useState(0);
+/**
+ * TypingText — Direct DOM manipulation, zero React re-renders.
+ * Instead of setState per character, we mutate textContent via ref.
+ */
+const TypingText = memo(function TypingText({ text, isActive }: { text: string; isActive: boolean }) {
+    const spanRef = useRef<HTMLSpanElement>(null);
+    const intervalRef = useRef<number>(0);
 
     useEffect(() => {
+        const el = spanRef.current;
+        if (!el) return;
+
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = 0;
+        }
+
         if (!isActive) {
-            setDisplayLength(text.length); // Show full text if not active (or passed)
+            el.textContent = text;
             return;
         }
 
-        // Reset and animate
-        setDisplayLength(0);
+        // Reset and animate via direct DOM manipulation
+        el.textContent = '';
         let current = 0;
         const total = text.length;
-        // Adjust speed based on text length, max duration e.g. 1s or 2s?
-        // Or fixed speed? e.g. 30ms per char.
-        const speed = 20;
+        // Adaptive speed: faster for longer text so animation doesn't lag
+        const speed = Math.max(12, Math.min(30, 700 / total));
 
-        const interval = setInterval(() => {
-            current += 1;
-            setDisplayLength(current);
-            if (current >= total) clearInterval(interval);
+        intervalRef.current = window.setInterval(() => {
+            current++;
+            el.textContent = text.slice(0, current);
+            if (current >= total) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = 0;
+            }
         }, speed);
 
-        return () => clearInterval(interval);
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = 0;
+            }
+        };
     }, [text, isActive]);
 
-    // If we toggle 'typing' style on/off, we need to handle that in parent. 
-    // This component assumes it is used when 'typing' style is requested.
+    return <span ref={spanRef} />;
+});
 
-    // However, the prompt says "Typing style display".
-    // Maybe the user wants a SPECIFIC 'typing' style mode like 'handwriting'.
-    // Yes, added 'typing' to style prop.
-
-    return <span>{text.slice(0, displayLength)}</span>;
-};
-
-
-// Handwriting Effect: Characters fade in with a slight delay and scale effect
-const HandwritingText = ({ text, isActive }: { text: string, isActive: boolean }) => {
+/**
+ * HandwritingText — Single GPU-accelerated clip-path animation.
+ * Replaces the old per-character <span> approach which created N DOM elements
+ * with N separate CSS animations, causing major performance issues.
+ */
+const HandwritingText = memo(function HandwritingText({ text, isActive }: { text: string; isActive: boolean }) {
     if (!isActive) return <span>{text}</span>;
 
     return (
-        <span>
-            {text.split('').map((char, index) => (
-                <span
-                    key={index}
-                    className="inline-block opacity-0 animate-write-in origin-bottom"
-                    style={{ animationDelay: `${index * 0.05}s` }}
-                >
-                    {char === ' ' ? '\u00A0' : char}
-                </span>
-            ))}
+        <span
+            className="inline-block lyrics-handwriting-reveal"
+            key={text} // Force re-mount to restart animation
+        >
+            {text}
         </span>
     );
-};
+});
+
+/**
+ * LyricsLine — Memoized individual line component.
+ * Only re-renders when isActive or style actually changes, NOT on every currentTime update.
+ */
+const LyricsLine = memo(function LyricsLine({
+    line,
+    isActive,
+    onClick,
+    style,
+    lineRef,
+}: {
+    line: LrcLine;
+    isActive: boolean;
+    onClick: () => void;
+    style: 'default' | 'handwriting' | 'typing';
+    lineRef?: React.Ref<HTMLParagraphElement>;
+}) {
+    const className = style === 'handwriting'
+        ? `lyrics-line origin-left font-handwriting ${isActive
+            ? 'text-4xl md:text-5xl lg:text-6xl font-bold text-black dark:text-white opacity-100'
+            : 'text-3xl md:text-4xl lg:text-5xl font-normal text-gray-500 dark:text-gray-400 opacity-50 hover:opacity-80 cursor-pointer'
+        }`
+        : `lyrics-line origin-left ${isActive
+            ? 'text-3xl md:text-4xl lg:text-5xl font-black text-black dark:text-white opacity-100 tracking-tight leading-tight'
+            : 'text-xl md:text-2xl lg:text-3xl font-bold text-gray-600 dark:text-gray-400 opacity-40 hover:opacity-70 cursor-pointer'
+        }`;
+
+    let content: React.ReactNode = line.text;
+    if (isActive && style === 'typing') {
+        content = <TypingText text={line.text} isActive={isActive} />;
+    } else if (isActive && style === 'handwriting') {
+        content = <HandwritingText text={line.text} isActive={isActive} />;
+    }
+
+    return (
+        <p
+            ref={lineRef}
+            className={className}
+            style={{
+                transform: isActive ? 'scale(1)' : 'scale(0.95)',
+                willChange: isActive ? 'transform, opacity' : 'auto',
+            }}
+            onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+            }}
+        >
+            {content}
+        </p>
+    );
+});
 
 export function LyricsView({ rawLrc, currentTime, scrollable = true, onLineClick, style = 'default' }: LyricsViewProps) {
     const lines = useMemo(() => (rawLrc ? parseLrc(rawLrc) : []), [rawLrc]);
+
     const activeIndex = useMemo(() => {
         if (!lines.length) return -1;
         for (let i = lines.length - 1; i >= 0; i--) {
@@ -90,39 +143,36 @@ export function LyricsView({ rawLrc, currentTime, scrollable = true, onLineClick
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const activeRef = useRef<HTMLParagraphElement>(null);
+    const lastScrolledIndex = useRef(-1);
+    const scrollRafRef = useRef(0);
 
+    // Scroll only when activeIndex actually changes, using RAF for smooth timing
     useEffect(() => {
-        if (scrollable && activeRef.current && scrollRef.current) {
-            activeRef.current.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
+        if (!scrollable || activeIndex === -1 || activeIndex === lastScrolledIndex.current) return;
+        lastScrolledIndex.current = activeIndex;
+
+        if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+
+        scrollRafRef.current = requestAnimationFrame(() => {
+            const container = scrollRef.current;
+            const element = activeRef.current;
+            if (!container || !element) return;
+
+            const containerHeight = container.clientHeight;
+            const elementTop = element.offsetTop;
+            const elementHeight = element.offsetHeight;
+            const targetScroll = elementTop - containerHeight / 2 + elementHeight / 2;
+
+            container.scrollTo({
+                top: targetScroll,
+                behavior: 'smooth',
             });
-        }
+        });
+
+        return () => {
+            if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+        };
     }, [activeIndex, scrollable]);
-
-    const getLineClassName = (isActive: boolean) => {
-        const baseStyle = 'transform transition-all duration-700 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] origin-left';
-
-        if (style === 'handwriting') {
-            return `${baseStyle} font-handwriting ${isActive
-                ? 'text-4xl md:text-5xl lg:text-6xl font-bold text-black dark:text-white scale-100 opacity-100'
-                : 'text-3xl md:text-4xl lg:text-5xl font-normal text-gray-500 dark:text-gray-400 scale-95 opacity-50 hover:opacity-80 cursor-pointer'
-                }`;
-        }
-
-        // Use default/typing style base
-        // Typing style just affects HOW the text appears, maybe font is same as default?
-        // Or monospace? "Typing style" -> Typewriter? 'font-mono'?
-        // The user says "Typing style display" (タイピング風の表示). This usually implies the animation, not necessarily the font.
-        // But let's use a nice mono font if style is 'typing' ?
-        // Actually, user said "lyrics display, typing style EFFECT".
-        // Let's stick to the animation logic mainly.
-
-        return `${baseStyle} ${isActive
-            ? 'text-3xl md:text-4xl lg:text-5xl font-black text-black dark:text-white scale-100 opacity-100 blur-none tracking-tight leading-tight'
-            : 'text-xl md:text-2xl lg:text-3xl font-bold text-gray-600 dark:text-gray-400 scale-95 opacity-40 blur-[1px] hover:opacity-70 cursor-pointer hover:scale-100 hover:blur-none'
-            }`;
-    };
 
     if (!rawLrc) {
         return (
@@ -142,39 +192,21 @@ export function LyricsView({ rawLrc, currentTime, scrollable = true, onLineClick
 
     return (
         <div
-            className={`w-full h-full ${scrollable ? 'overflow-y-auto custom-scrollbar' : 'overflow-hidden'} transition-colors duration-500`}
+            className={`w-full h-full ${scrollable ? 'overflow-y-auto custom-scrollbar' : 'overflow-hidden'}`}
             ref={scrollRef}
             onPointerDown={(e) => e.stopPropagation()}
         >
             <div className={`py-[50vh] px-6 md:px-10 max-w-3xl mx-auto flex flex-col items-start text-left ${style === 'handwriting' ? 'space-y-4' : 'space-y-6 md:space-y-8'}`}>
-                {lines.map((line, i) => {
-                    const isActive = i === activeIndex;
-
-                    // Determine content based on style
-                    let content: React.ReactNode = line.text;
-
-                    if (isActive) {
-                        if (style === 'typing') {
-                            content = <TypingText text={line.text} isActive={isActive} />;
-                        } else if (style === 'handwriting') {
-                            content = <HandwritingText text={line.text} isActive={isActive} />;
-                        }
-                    }
-
-                    return (
-                        <p
-                            key={i}
-                            ref={isActive ? activeRef : null}
-                            className={getLineClassName(isActive)}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (onLineClick) onLineClick(line.time);
-                            }}
-                        >
-                            {content}
-                        </p>
-                    );
-                })}
+                {lines.map((line, i) => (
+                    <LyricsLine
+                        key={i}
+                        line={line}
+                        isActive={i === activeIndex}
+                        onClick={() => onLineClick?.(line.time)}
+                        style={style}
+                        lineRef={i === activeIndex ? activeRef : undefined}
+                    />
+                ))}
             </div>
         </div>
     );

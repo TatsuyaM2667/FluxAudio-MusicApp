@@ -97,13 +97,41 @@ body {
   padding-top: 24px;
 }
 
+/* ============================================
+   PERFORMANCE-OPTIMIZED LYRICS ANIMATIONS
+   ============================================ */
+
+/* Lyrics line base: GPU-accelerated transitions via transform & opacity only */
+.lyrics-line {
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              opacity 0.4s ease,
+              font-size 0.4s ease;
+  contain: content;
+}
+
+/* Handwriting reveal: single GPU-composited clip-path animation.
+   Replaces the old per-character <span> approach that created N DOM elements
+   with N separate animations, causing severe frame drops. */
+.lyrics-handwriting-reveal {
+  animation: handwriting-reveal 1.2s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+  will-change: clip-path;
+}
+
+@keyframes handwriting-reveal {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    clip-path: inset(0 0% 0 0);
+  }
+}
+
+/* Legacy write-in animation (kept for backward compatibility) */
 @keyframes write-in {
   0% {
     opacity: 0;
     transform: translateY(2px) scale(0.9);
-    /* 少し下から、小さく */
     filter: blur(2px);
-    /* インクが滲むような感じ */
   }
 
   100% {
@@ -115,5 +143,4 @@ body {
 
 .animate-write-in {
   animation: write-in 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-  /* ペンの走りのようなイージング */
 }

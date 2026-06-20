@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Firebase HostingやCloudflare Emulatorで必要になることが多いポートを公開
+    ports:
+      - "5173:5173"    # Vite
+      - "4000:4000"    # Firebase Emulator UI (使用する場合)
+      - "5000:5000"    # Firebase Hosting Emulator (使用する場合)
+      - "8787:8787"    # Wrangler / Cloudflare Worker (使用する場合)
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    # Linux/Mac/Windows全てで初回インストールと起動を担保する
+    command: /bin/sh -c "npm install && npm run dev -- --host 0.0.0.0"
