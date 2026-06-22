@@ -79,7 +79,7 @@ export async function deleteSong(path: string): Promise<boolean> {
 export async function fetchSongs(): Promise<SongMetadataJson[]> {
   // 1. localStorage Cache (Only if online, otherwise we want fresh offline data or force check)
   // Actually, let's skip cache if we suspect we are offline to force fallback check, or relying on standard fetch
-  const cached = localStorage.getItem("music_index_cache_v2");
+  const cached = localStorage.getItem("music_index_cache_v3");
   if (cached && navigator.onLine) {
     try {
       const parsed = JSON.parse(cached);
@@ -216,11 +216,12 @@ export async function fetchMetadataBlob(path: string): Promise<Blob> {
 
     const res = await fetch(url, {
       headers: {
-        "ngrok-skip-browser-warning": "true"
+        "ngrok-skip-browser-warning": "true",
+        "Range": "bytes=0-512000" // 先頭500KBだけを取得（ID3タグ解析にはこれで十分）
       }
     });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok && res.status !== 206) throw new Error(`HTTP ${res.status}`);
     return await res.blob();
   }, 3, 2000);
 }

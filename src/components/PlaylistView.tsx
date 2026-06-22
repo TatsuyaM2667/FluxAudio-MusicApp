@@ -1,11 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { SongMeta, Playlist } from '../types/music';
 import { SongCard } from './SongCard';
 import { IconChevronLeft, IconCloudDownload, IconCheck } from './Icons';
 import { platform } from '../utils/platform';
 import { downloadManager } from '../services/DownloadManager';
 import { useDownloads } from '../hooks/useDownloads';
-import { useState } from 'react';
 
 interface PlaylistViewProps {
     playlist: Playlist;
@@ -65,6 +64,22 @@ export function PlaylistView({
         }
         setDownloading(false);
     };
+    // Infinite Scroll Logic
+    const [visibleCount, setVisibleCount] = useState(50);
+    const observer = useRef<IntersectionObserver | null>(null);
+    const lastElementRef = useCallback((node: HTMLDivElement | null) => {
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) {
+                setVisibleCount(prev => prev + 50);
+            }
+        }, { rootMargin: '400px' });
+        if (node) observer.current.observe(node);
+    }, []);
+
+    useEffect(() => {
+        setVisibleCount(50);
+    }, [playlist.id]);
 
     return (
         <div className="flex-1 overflow-y-auto pb-32 custom-scrollbar">
@@ -155,7 +170,7 @@ export function PlaylistView({
             <div className="px-4 md:px-8 pt-6">
                 {playlistSongs.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-                        {playlistSongs.map(song => (
+                        {playlistSongs.slice(0, visibleCount).map(song => (
                             <SongCard
                                 key={song.path}
                                 song={song}
@@ -174,6 +189,9 @@ export function PlaylistView({
                                 onArtistClick={onArtistClick}
                             />
                         ))}
+                        {visibleCount < playlistSongs.length && (
+                            <div ref={lastElementRef} className="col-span-full h-10 w-full"></div>
+                        )}
                     </div>
                 ) : (
                     <div className="text-center text-gray-400 py-20">

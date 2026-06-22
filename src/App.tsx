@@ -254,9 +254,10 @@ function App() {
   const { favorites, toggleFavorite } = useFavorites();
   const { toggleFavoriteArtist, isFavoriteArtist, getFavoriteArtistNames } = useFavoriteArtists();
   const { favoriteAlbums, toggleFavoriteAlbum, isFavoriteAlbum } = useFavoriteAlbums();
+  const favoriteArtistNames = useMemo(() => getFavoriteArtistNames(), [getFavoriteArtistNames]);
 
   // This now just runs the effect to check for new songs
-  useNewSongNotifications(songs, getFavoriteArtistNames(), favoriteAlbums);
+  useNewSongNotifications(songs, favoriteArtistNames, favoriteAlbums);
 
   const {
     notifications,
@@ -288,15 +289,8 @@ function App() {
     if (songsLoading) return;
     if (playlistsLoading) return;
 
-    // Check if metadata for the first 3 songs is loaded
-    const checkCount = Math.min(songs.length, 3);
-    if (checkCount > 0) {
-      const firstFewLoaded = songs.slice(0, checkCount).every(s => s.loaded);
-      if (!firstFewLoaded) return;
-    }
-
     setIsReady(true);
-  }, [minTimePassed, songsLoading, playlistsLoading, songs]);
+  }, [minTimePassed, songsLoading, playlistsLoading]);
 
   const {
     view,
@@ -537,7 +531,7 @@ function App() {
             onToggleFavoriteArtist={toggleFavoriteArtist}
             isFavoriteAlbum={isFavoriteAlbum}
             onToggleFavoriteAlbum={toggleFavoriteAlbum}
-            favoriteArtists={getFavoriteArtistNames()}
+            favoriteArtists={favoriteArtistNames}
             favoriteAlbums={favoriteAlbums}
 
           />

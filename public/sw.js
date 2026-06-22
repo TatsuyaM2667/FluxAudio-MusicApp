@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'fluxaudio-v1';
+const CACHE_NAME = 'fluxaudio-v2';
 
 // App shell files to cache for offline
 const APP_SHELL_FILES = [

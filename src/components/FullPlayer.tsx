@@ -179,10 +179,26 @@ export function FullPlayer({
         }
     }, [activeViewMode, history.length]);
 
-    const art = current.tags?.picture ? getAlbumArt(current.tags.picture) : null;
-    const title = current.tags?.title || current.path.split("/").pop()?.replace(/\.[^/.]+$/, "") || "Unknown Title";
-    const artist = current.tags?.artist || "Unknown Artist";
-    const album = current.tags?.album || "Unknown Album";
+    // --- Lazy ID3 Tag Loading ---
+    const [lazyTags, setLazyTags] = useState<any>(null);
+    useEffect(() => {
+        setLazyTags(null); // Reset when song changes
+        if (current && !current.tags?.picture) {
+            import('../utils/id3').then(({ fetchLazyId3Tags }) => {
+                fetchLazyId3Tags(current.path).then((tags) => {
+                    if (tags && tags.picture) {
+                        setLazyTags(tags);
+                    }
+                });
+            });
+        }
+    }, [current]);
+
+    const activeTags = lazyTags || current.tags;
+    const art = activeTags?.picture ? getAlbumArt(activeTags.picture) : null;
+    const title = activeTags?.title || current.tags?.title || current.path.split("/").pop()?.replace(/\.[^/.]+$/, "") || "Unknown Title";
+    const artist = activeTags?.artist || current.tags?.artist || "Unknown Artist";
+    const album = activeTags?.album || current.tags?.album || "Unknown Album";
 
     // Dynamic color extraction
     useEffect(() => {
@@ -378,7 +394,7 @@ export function FullPlayer({
                     </div>
 
                     {/* Mobile Main Content */}
-                    <div className="flex-1 overflow-hidden relative flex flex-col justify-center">
+                    <div className="flex-1 overflow-hidden relative flex flex-col justify-center min-h-0">
                         {isVideoViewActive ? (
                             <div className="w-full aspect-video bg-black flex items-center justify-center z-50 shadow-2xl">
                                 <video
@@ -403,8 +419,11 @@ export function FullPlayer({
                             </div>
                         ) : activeViewMode === 'art' ? (
                             // Large Artwork Mode
-                            <div className="w-full px-8 pb-8 flex items-center justify-center">
-                                <div className="w-full aspect-square shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden relative bg-white/5">
+                            <div className="w-full px-4 pb-2 flex-1 flex items-center justify-center min-h-0">
+                                <div 
+                                    className="aspect-square shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden relative bg-white/5 shrink-0"
+                                    style={{ width: '100%', maxWidth: 'min(100%, calc(100vh - 320px))' }}
+                                >
                                     {art ? <img src={art} alt={title} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><IconMusic size={80} opacity={0.5} /></div>}
                                 </div>
                             </div>
@@ -482,16 +501,16 @@ export function FullPlayer({
                     </div>
 
                     {/* Track Info (Artist/Fave Row) */}
-                    <div className="px-8 mb-6 mt-2 shrink-0 flex items-center justify-between" onPointerDown={e => e.stopPropagation()}>
+                    <div className="px-6 mb-2 mt-0 shrink-0 flex items-center justify-between" onPointerDown={e => e.stopPropagation()}>
                         <div className="min-w-0">
-                            <div className="text-2xl font-bold truncate leading-tight">{title}</div>
+                            <div className="text-xl font-bold truncate leading-tight">{title}</div>
                             <div
-                                className="text-lg text-white/60 truncate cursor-pointer hover:underline"
+                                className="text-sm text-white/60 truncate cursor-pointer hover:underline"
                                 onClick={() => handleArtistAction()}
                             >{artist}</div>
                         </div>
                         <button onClick={toggleFavorite} className={`p-2 transition ${isFavorite ? 'text-red-500' : 'text-white/40'}`}>
-                            {isFavorite ? <IconHeartFilled size={28} /> : <IconHeart size={28} />}
+                            {isFavorite ? <IconHeartFilled size={24} /> : <IconHeart size={24} />}
                         </button>
                     </div>
 
@@ -501,7 +520,7 @@ export function FullPlayer({
                         onPointerDown={(e) => e.stopPropagation()}
                     >
                         {/* Seekbar */}
-                        <div className="mb-6 group w-full">
+                        <div className="mb-2 group w-full">
                             <input
                                 type="range"
                                 min={0}
@@ -520,24 +539,24 @@ export function FullPlayer({
                         </div>
 
                         {/* Main Transport Controls */}
-                        <div className="flex items-center justify-between gap-4 mb-8">
-                            <button onClick={toggleShuffle} className={`${isShuffle ? 'text-green-400' : 'text-white/60'}`}><IconShuffle size={20} /></button>
-                            <button onClick={onPrev} className="text-white active:scale-95"><IconSkipBack size={32} className="fill-current" /></button>
-                            <button onClick={togglePlay} className="w-16 h-16 bg-white text-black rounded-full flex items-center justify-center shadow-lg active:scale-95">
-                                {isPlaying ? <IconPause size={40} className="fill-current" /> : <IconPlay size={40} className="ml-1 fill-current" />}
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                            <button onClick={toggleShuffle} className={`p-2 ${isShuffle ? 'text-green-400' : 'text-white/60'}`}><IconShuffle size={20} /></button>
+                            <button onClick={onPrev} className="p-2 text-white active:scale-95"><IconSkipBack size={28} className="fill-current" /></button>
+                            <button onClick={togglePlay} className="w-14 h-14 bg-white text-black rounded-full flex items-center justify-center shadow-lg active:scale-95">
+                                {isPlaying ? <IconPause size={32} className="fill-current" /> : <IconPlay size={32} className="ml-1 fill-current" />}
                             </button>
-                            <button onClick={onNext} className="text-white active:scale-95"><IconSkipForward size={32} className="fill-current" /></button>
+                            <button onClick={onNext} className="p-2 text-white active:scale-95"><IconSkipForward size={28} className="fill-current" /></button>
                             <button
                                 onClick={toggleRepeat}
-                                className={`relative ${repeatMode !== 'off' ? 'text-green-400' : 'text-white/60'}`}
+                                className={`relative p-2 ${repeatMode !== 'off' ? 'text-green-400' : 'text-white/60'}`}
                             >
                                 <IconRepeat size={20} />
-                                {repeatMode === 'one' && <span className="absolute -top-1 -right-1 text-[8px] font-black">1</span>}
+                                {repeatMode === 'one' && <span className="absolute top-1 right-1 text-[8px] font-black">1</span>}
                             </button>
                         </div>
 
                         {/* Bottom Utility Buttons */}
-                        <div className="flex items-center justify-center gap-12 pb-8">
+                        <div className="flex items-center justify-center gap-8 pb-2">
                             <button
                                 className={`p-2 transition ${activeViewMode === 'lyrics' ? 'text-white bg-white/10 rounded-lg' : 'text-white/40'}`}
                                 onClick={() => { setViewMode(prev => prev === 'lyrics' ? 'art' : 'lyrics'); setVideoActivePath(null); }}
@@ -573,10 +592,11 @@ export function FullPlayer({
                         <IconMoreHorizontal size={28} />
                     </button>
 
-                    <div className="w-1/2 h-full flex flex-col justify-center items-center lg:items-end">
+                    <div className="w-1/2 h-full flex flex-col justify-center items-center lg:items-end min-h-0">
                         <div
                             key={`art-desktop-${current.path}`}
-                            className="aspect-square w-full max-w-[500px] shadow-[0_30px_60px_rgba(0,0,0,0.5)] rounded-lg overflow-hidden relative cursor-pointer group"
+                            className="aspect-square w-full shadow-[0_30px_60px_rgba(0,0,0,0.5)] rounded-lg overflow-hidden relative cursor-pointer group shrink-0"
+                            style={{ maxWidth: 'min(500px, calc(100vh - 400px))' }}
                             onClick={() => hasVideo ? handleVideoToggle() : setShowInfo(true)}
                         >
                             {isVideoViewActive ? (

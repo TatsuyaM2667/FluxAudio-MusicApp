@@ -48,8 +48,8 @@ export function usePlaylists() {
         setTargetSongForPlaylist(null);
     }, [newPlaylistName]);
 
-    const openPlaylistModal = useCallback((song: SongMeta) => {
-        setTargetSongForPlaylist(song);
+    const openPlaylistModal = useCallback((song?: SongMeta | null) => {
+        setTargetSongForPlaylist(song || null);
         setShowPlaylistModal(true);
     }, []);
 

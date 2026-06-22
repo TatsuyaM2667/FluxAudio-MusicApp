@@ -1,6 +1,7 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { SongMeta } from '../types/music';
 import { useAppNotifications } from '../contexts/NotificationContext';
+import { splitArtists } from '../utils/searchUtils';
 
 const LAST_CHECK_KEY = 'lastNewSongCheck';
 
@@ -10,6 +11,12 @@ export function useNewSongNotifications(
     favoriteAlbums: { artist: string; album: string }[]
 ) {
     const { addNotification } = useAppNotifications();
+    const favoriteArtistSet = useMemo(() => new Set(favoriteArtists), [favoriteArtists]);
+    const favoriteAlbumSet = useMemo(() => {
+        const set = new Set<string>();
+        favoriteAlbums.forEach(album => set.add(`${album.artist}\u0000${album.album}`));
+        return set;
+    }, [favoriteAlbums]);
 
     // Check for new songs from favorite artists/albums
     const checkNewSongs = useCallback(() => {
@@ -25,11 +32,13 @@ export function useNewSongNotifications(
             const album = song.tags?.album;
 
             // Check if artist is in favorites
-            if (artist && favoriteArtists.includes(artist)) return true;
+            if (artist) {
+                if (splitArtists(artist).some(name => favoriteArtistSet.has(name))) return true;
+            }
 
             // Check if album is in favorites
             if (artist && album) {
-                return favoriteAlbums.some(fa => fa.artist === artist && fa.album === album);
+                return favoriteAlbumSet.has(`${artist}\u0000${album}`);
             }
 
             return false;
@@ -50,14 +59,14 @@ export function useNewSongNotifications(
         }
 
         localStorage.setItem(LAST_CHECK_KEY, now.toString());
-    }, [songs, favoriteArtists, favoriteAlbums, addNotification]);
+    }, [songs, favoriteArtistSet, favoriteAlbumSet, addNotification]);
 
     // Check for new songs periodically
     useEffect(() => {
-        if (songs.length > 0 && (favoriteArtists.length > 0 || favoriteAlbums.length > 0)) {
+        if (songs.length > 0 && (favoriteArtistSet.size > 0 || favoriteAlbumSet.size > 0)) {
             checkNewSongs();
         }
-    }, [songs, favoriteArtists, favoriteAlbums, checkNewSongs]);
+    }, [songs, favoriteArtistSet, favoriteAlbumSet, checkNewSongs]);
 
     return null;
 }

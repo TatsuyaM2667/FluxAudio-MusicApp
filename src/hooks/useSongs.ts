@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { SongMeta } from '../types/music';
-import { fetchSongs, fetchMetadataBlob } from '../api';
-import { getCachedMetadata, cacheMetadata } from '../utils/db';
+import { fetchSongs } from '../api';
 import { useOffline } from './useOffline';
 import { downloadManager } from '../services/DownloadManager';
 import { platform } from '../utils/platform';
@@ -54,31 +53,40 @@ export function useSongs() {
                 const rawList = await fetchSongs();
                 if (isCancelled) return;
 
-                const list = rawList.filter(item => !item.path.toLowerCase().endsWith('.mp4'));
-                const initialSongs: SongMeta[] = list.map(item => ({
-                    path: item.path,
-                    tags: {
-                        title: item.title || item.path.split('/').pop() || 'Unknown Title',
-                        artist: item.artist || 'Unknown Artist',
-                        album: item.album,
-                        year: item.year,
-                        genre: item.genre,
-                        duration: item.duration,
-                        picture: item.cover ? (
-                            typeof item.cover === 'string' ? {
-                                format: 'url',
-                                data: item.cover
-                            } : {
-                                format: (item.cover as any).format || (item.cover as any).mime,
-                                data: (item.cover as any).data
-                            }
-                        ) : undefined
-                    },
-                    loaded: !!item.title,
-                    lrcPath: item.lrc,
-                    videoPath: item.video,
-                    artistImage: item.artistImage
-                }));
+                const list = rawList.filter((item: any) => !item.path.toLowerCase().endsWith('.mp4'));
+                const initialSongs: SongMeta[] = list.map((item: any) => {
+                    // fetchSongs() already maps data into { tags: { title, artist, picture, ... }, lrc, video, ... }
+                    // Use tags if present (mapped data), otherwise fall back to flat fields (raw data)
+                    const tags = item.tags || {};
+                    const title = tags.title || item.title || item.path.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Unknown Title';
+                    const artist = tags.artist || item.artist || 'Unknown Artist';
+                    const album = tags.album || item.album;
+                    const year = tags.year || item.year;
+                    const genre = tags.genre || item.genre;
+                    const duration = tags.duration || item.duration;
+                    const rawPicture = tags.picture || item.cover;
+
+                    let picture: any = undefined;
+                    if (rawPicture) {
+                        if (typeof rawPicture === 'string') {
+                            picture = { format: 'url', data: rawPicture };
+                        } else if (rawPicture.format || rawPicture.mime) {
+                            picture = {
+                                format: rawPicture.format || rawPicture.mime,
+                                data: rawPicture.data
+                            };
+                        }
+                    }
+
+                    return {
+                        path: item.path,
+                        tags: { title, artist, album, year, genre, duration, picture },
+                        loaded: !!title,
+                        lrcPath: item.lrc || item.lrcPath || null,
+                        videoPath: item.video || item.videoPath || undefined,
+                        artistImage: item.artistImage
+                    };
+                });
 
                 setSongs(initialSongs);
                 setLoading(false);
@@ -88,50 +96,10 @@ export function useSongs() {
                     initialSongs.map(s => ({ path: s.path, lrcPath: s.lrcPath }))
                 );
 
-                // Fetch metadata for songs that don't have it yet
-                for (const song of initialSongs) {
-                    if (isCancelled) break;
-                    if (song.loaded) continue;
-                    if (song.tags?.title && song.tags?.title !== 'Unknown Title' && (song.tags?.picture as any)?.format === 'url') {
-                        continue;
-                    }
-
-                    try {
-                        const cached = await getCachedMetadata(song.path);
-                        if (isCancelled) break;
-
-                        if (cached) {
-                            setSongs(prev => prev.map(s => s.path === song.path ? { ...s, tags: cached.tags, loaded: true } : s));
-                            continue;
-                        }
-
-                        await new Promise(r => setTimeout(r, 50));
-                        if (isCancelled) break;
-
-                        const blob = await fetchMetadataBlob(song.path);
-                        if (isCancelled) break;
-
-                        await new Promise<void>(resolve => {
-                            (window as any).jsmediatags.read(blob, {
-                                onSuccess: (tag: any) => {
-                                    if (isCancelled) { resolve(); return; }
-                                    const tags = tag.tags;
-                                    cacheMetadata({ path: song.path, tags }).catch(() => { });
-                                    setSongs(prev => prev.map(s => s.path === song.path ? { ...s, tags, loaded: true } : s));
-                                    resolve();
-                                },
-                                onError: () => {
-                                    if (isCancelled) { resolve(); return; }
-                                    setSongs(prev => prev.map(s => s.path === song.path ? { ...s, loaded: true } : s));
-                                    resolve();
-                                }
-                            });
-                        });
-                    } catch (e) {
-                        if (isCancelled) break;
-                        setSongs(prev => prev.map(s => s.path === song.path ? { ...s, loaded: true } : s));
-                    }
-                }
+                // --- ID3タグの一括フェッチループを完全削除 ---
+                // 全曲のMP3をダウンロードしてクライアントで解析する処理はフリーズの原因になるため廃止しました。
+                // 今後は再生時にのみタグを取得する、またはサーバーサイドであらかじめタグを抽出したmusic_index.jsonを利用するアプローチになります。
+                // ------------------------------------------
 
             } catch (err) {
                 console.error("Failed to fetch song list", err);

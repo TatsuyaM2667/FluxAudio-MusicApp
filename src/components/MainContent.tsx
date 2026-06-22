@@ -11,7 +11,7 @@ import { getPageTitle } from '../hooks/useAlbumArt';
 import { platform } from '../utils/platform';
 import { downloadManager } from '../services/DownloadManager';
 import { useDownloads } from '../hooks/useDownloads';
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useOffline } from '../hooks/useOffline';
 
 interface MainContentProps {
@@ -94,6 +94,25 @@ export function MainContent({
         setDownloading(false);
         downloadManager.setTotalToDownload(0);
     };
+
+    // Infinite Scroll Logic
+    const [visibleCount, setVisibleCount] = useState(50);
+    const observer = useRef<IntersectionObserver | null>(null);
+    const lastElementRef = useCallback((node: HTMLDivElement | null) => {
+        if (loading) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) {
+                setVisibleCount(prev => prev + 50);
+            }
+        }, { rootMargin: '400px' });
+        if (node) observer.current.observe(node);
+    }, [loading]);
+
+    // Reset visible count when view changes
+    useEffect(() => {
+        setVisibleCount(50);
+    }, [view, searchQuery, isOffline]);
 
     // Artist View
     if (view === 'artist' && selectedArtist) {
@@ -318,7 +337,6 @@ export function MainContent({
                             )}
 
                             {/* Song Cards */}
-                            {/* Song Cards */}
                             {(() => {
                                 // Calculate the actual song list being displayed for proper context
                                 const songsToDisplay = view === 'new_arrivals'
@@ -329,26 +347,35 @@ export function MainContent({
                                         ? displaySongs.filter(s => isDownloaded(s.path))
                                         : displaySongs);
 
-                                return songsToDisplay.map((song) => (
-                                    <SongCard
-                                        key={song.path}
-                                        song={song}
-                                        isCurrent={current?.path === song.path}
-                                        isPlaying={isPlaying}
-                                        isFavorite={favorites.includes(song.path)}
-                                        onToggleFavorite={(e) => { e.stopPropagation(); onToggleFavorite(song.path); }}
-                                        onClick={() => {
-                                            // Pass the displayed songs as context for proper playlist playback
-                                            console.log('[MainContent] Playing song with context:', view, songsToDisplay.length, 'songs');
-                                            onPlaySong(song, songsToDisplay);
-                                        }}
-                                        onPlayNext={() => onPlayNext(song)}
-                                        onAddToPlaylist={() => onAddToPlaylist(song)}
-                                        onDelete={onDelete}
-                                        getAlbumArt={getAlbumArt}
-                                        onArtistClick={onArtistClick}
-                                    />
-                                ));
+                                const visibleSongs = songsToDisplay.slice(0, visibleCount);
+
+                                return (
+                                    <>
+                                        {visibleSongs.map((song) => (
+                                            <SongCard
+                                                key={song.path}
+                                                song={song}
+                                                isCurrent={current?.path === song.path}
+                                                isPlaying={isPlaying}
+                                                isFavorite={favorites.includes(song.path)}
+                                                onToggleFavorite={(e) => { e.stopPropagation(); onToggleFavorite(song.path); }}
+                                                onClick={() => {
+                                                    // Pass the displayed songs as context for proper playlist playback
+                                                    console.log('[MainContent] Playing song with context:', view, songsToDisplay.length, 'songs');
+                                                    onPlaySong(song, songsToDisplay);
+                                                }}
+                                                onPlayNext={() => onPlayNext(song)}
+                                                onAddToPlaylist={() => onAddToPlaylist(song)}
+                                                onDelete={onDelete}
+                                                getAlbumArt={getAlbumArt}
+                                                onArtistClick={onArtistClick}
+                                            />
+                                        ))}
+                                        {visibleCount < songsToDisplay.length && (
+                                            <div ref={lastElementRef} className="col-span-full h-10 w-full"></div>
+                                        )}
+                                    </>
+                                );
                             })()}
                         </div>
                     </>

@@ -29,7 +29,25 @@ export const SongCard = memo(function SongCard({ song, isCurrent, isPlaying, isF
     const canDownload = platform.isDownloadSupported();
     const downloaded = isDownloaded(song.path);
 
-    const art = song.tags?.picture ? getAlbumArt(song.tags.picture) : null;
+    const [art, setArt] = useState<string | null>(null);
+
+    useEffect(() => {
+        let isMounted = true;
+        if (song.tags?.picture) {
+            // メインスレッドのブロックを防ぐため、UIのレンダリング後に画像を順次生成する
+            const timer = setTimeout(() => {
+                if (isMounted) {
+                    setArt(getAlbumArt(song.tags!.picture));
+                }
+            }, 0);
+            return () => {
+                isMounted = false;
+                clearTimeout(timer);
+            };
+        } else {
+            setArt(null);
+        }
+    }, [song.tags?.picture, getAlbumArt]);
     const fallbackTitle = song.path.split("/").pop()?.replace(/\.[^/.]+$/, "") || "Unknown Title";
     const title = song.tags?.title || fallbackTitle;
     const artist = song.tags?.artist || "Unknown Artist";

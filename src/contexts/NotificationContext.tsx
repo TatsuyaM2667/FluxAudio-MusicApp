@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { platform } from '../utils/platform';
 
@@ -44,7 +44,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
     }, [notifications]);
 
-    const unreadCount = notifications.filter(n => !n.read).length;
+    const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
 
     const addNotification = useCallback(async (notif: Omit<AppNotification, 'id' | 'date' | 'read'>) => {
         const newNotif: AppNotification = {
@@ -106,8 +106,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         setNotifications(prev => prev.filter(n => n.id !== id));
     }, []);
 
-    return (
-        <NotificationContext.Provider value={{
+    const contextValue = useMemo(() => ({
             notifications,
             unreadCount,
             addNotification,
@@ -115,7 +114,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
             markAllAsRead,
             clearNotifications,
             removeNotification
-        }}>
+    }), [
+        notifications,
+        unreadCount,
+        addNotification,
+        markAsRead,
+        markAllAsRead,
+        clearNotifications,
+        removeNotification
+    ]);
+
+    return (
+        <NotificationContext.Provider value={contextValue}>
             {children}
             
             {/* Toast Container */}
