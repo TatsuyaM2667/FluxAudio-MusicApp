@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { deleteSong } from "./api";
+import { deleteSong, SongMetadataUpdate, updateSongMetadata, uploadArtistImage } from "./api";
 import { API_BASE } from "./config";
 import { SongMeta } from "./types/music";
 import { SplashScreen } from '@capacitor/splash-screen';
@@ -35,6 +35,7 @@ import { Player } from "./components/Player";
 import { FullPlayer } from "./components/FullPlayer";
 import { MainContent } from "./components/MainContent";
 import { PlaylistModal } from "./components/PlaylistModal";
+import { SongMetadataModal } from "./components/SongMetadataModal";
 import { NotificationDropdown } from "./components/NotificationDropdown";
 import { IconChevronLeft, IconBell, IconBellFilled } from "./components/Icons";
 
@@ -268,6 +269,8 @@ function App() {
   } = useAppNotifications();
 
   const [showNotifications, setShowNotifications] = useState(false);
+  const [editingSong, setEditingSong] = useState<SongMeta | null>(null);
+  const [isSavingSongMetadata, setIsSavingSongMetadata] = useState(false);
 
   const { theme, toggleTheme } = useTheme();
   const {
@@ -368,6 +371,32 @@ function App() {
     } else {
       alert("削除に失敗しました");
     }
+  };
+
+  const handleSaveSongMetadata = async (song: SongMeta, updates: SongMetadataUpdate) => {
+    setIsSavingSongMetadata(true);
+    try {
+      const updated = await updateSongMetadata(song.path, updates);
+      if (!updated) {
+        alert("タグの更新に失敗しました");
+        return;
+      }
+
+      await refreshSongs();
+      setEditingSong(null);
+    } finally {
+      setIsSavingSongMetadata(false);
+    }
+  };
+
+  const handleUploadArtistImage = async (artist: string, file: File) => {
+    const artistImage = await uploadArtistImage(artist, file);
+    if (!artistImage) {
+      alert("アーティスト画像のアップロードに失敗しました");
+      return;
+    }
+
+    await refreshSongs();
   };
 
   // Filtering Logic
@@ -521,6 +550,8 @@ function App() {
             onPlayNext={handlePlayNext}
             onAddToPlaylist={openPlaylistModal}
             onDelete={handleDeleteSong}
+            onEditSong={setEditingSong}
+            onUploadArtistImage={handleUploadArtistImage}
             getAlbumArt={getAlbumArt}
             setView={setView}
             setSearchQuery={setSearchQuery}
@@ -589,6 +620,8 @@ function App() {
             history={history}
             onQueueItemClick={(song: SongMeta) => handlePlaySong(song)}
             onArtistClick={handleArtistClick}
+            onAlbumClick={handleAlbumClick}
+            onEditSong={setEditingSong}
             onVideoModeChange={(isVideo: boolean) => setIsVideoMode(isVideo)}
             onVideoEnd={() => {
               // Reset video mode BEFORE advancing to next song
@@ -613,6 +646,12 @@ function App() {
         onClose={closePlaylistModal}
         onCreatePlaylist={handleCreatePlaylist}
         onAddToPlaylist={handleAddToPlaylist}
+      />
+      <SongMetadataModal
+        song={editingSong}
+        saving={isSavingSongMetadata}
+        onClose={() => setEditingSong(null)}
+        onSave={handleSaveSongMetadata}
       />
     </div >
   );

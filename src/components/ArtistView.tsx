@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { API_BASE } from '../config';
 import { SongMeta, Picture } from '../types/music';
-import { IconPlay, IconShuffle, IconChevronLeft, IconMusic, IconStar, IconStarFilled } from './Icons';
+import { IconPlay, IconShuffle, IconChevronLeft, IconMusic, IconStar, IconStarFilled, IconCloudDownload, IconLibrary } from './Icons';
 import { songBelongsToArtist } from '../utils/searchUtils';
 
 type ArtistViewProps = {
@@ -13,9 +13,14 @@ type ArtistViewProps = {
     onAlbumClick: (artist: string, album: string) => void;
     isFavoriteArtist?: boolean;
     onToggleFavoriteArtist?: (artist: string) => void;
+    onUploadArtistImage?: (artist: string, file: File) => Promise<void>;
+    onEditSong?: (song: SongMeta) => void;
 };
 
-export function ArtistView({ artist, songs, onBack, onPlaySong, getAlbumArt, onAlbumClick, isFavoriteArtist, onToggleFavoriteArtist }: ArtistViewProps) {
+export function ArtistView({ artist, songs, onBack, onPlaySong, getAlbumArt, onAlbumClick, isFavoriteArtist, onToggleFavoriteArtist, onUploadArtistImage, onEditSong }: ArtistViewProps) {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploadingImage, setUploadingImage] = useState(false);
+
     // Filter songs by artist (supports comma-separated artist names)
     const artistSongs = useMemo(() => {
         return songs.filter(s => songBelongsToArtist(s.tags?.artist, artist));
@@ -41,6 +46,19 @@ export function ArtistView({ artist, songs, onBack, onPlaySong, getAlbumArt, onA
             const randomIdx = Math.floor(Math.random() * artistSongs.length);
             onPlaySong(artistSongs[randomIdx]);
             // Note: Actual shuffle state needs to be set in App.tsx, but starting playback is the first step
+        }
+    };
+
+    const handleArtistImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file || !onUploadArtistImage) return;
+
+        setUploadingImage(true);
+        try {
+            await onUploadArtistImage(artist, file);
+        } finally {
+            setUploadingImage(false);
         }
     };
 
@@ -92,6 +110,27 @@ export function ArtistView({ artist, songs, onBack, onPlaySong, getAlbumArt, onA
                             </button>
                         )}
                     </div>
+
+                    {onUploadArtistImage && (
+                        <>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleArtistImageChange}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploadingImage}
+                                className="absolute top-20 right-6 px-4 py-2 bg-white/70 dark:bg-black/60 backdrop-blur-md rounded-full text-sm font-bold hover:scale-105 transition disabled:opacity-50 flex items-center gap-2"
+                            >
+                                <IconCloudDownload size={16} />
+                                {uploadingImage ? 'アップロード中...' : '画像をアップロード'}
+                            </button>
+                        </>
+                    )}
 
                     <h1 className="text-4xl md:text-6xl font-black tracking-tight drop-shadow-lg mb-4">{artist}</h1>
                     <div className="flex gap-4">
@@ -153,6 +192,19 @@ export function ArtistView({ artist, songs, onBack, onPlaySong, getAlbumArt, onA
                                         <div className="text-xs text-gray-400 font-mono">
                                             {Math.floor((song.tags?.duration || 0) / 60)}:{Math.floor((song.tags?.duration || 0) % 60).toString().padStart(2, '0')}
                                         </div>
+                                        {onEditSong && (
+                                            <button
+                                                type="button"
+                                                className="opacity-0 group-hover:opacity-100 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onEditSong(song);
+                                                }}
+                                                title="タグを編集"
+                                            >
+                                                <IconLibrary size={16} />
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                             </div>

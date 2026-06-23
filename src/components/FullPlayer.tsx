@@ -34,6 +34,8 @@ type FullPlayerProps = {
     history?: SongMeta[];
     onQueueItemClick: (song: SongMeta) => void;
     onArtistClick: (artist: string) => void;
+    onAlbumClick: (artist: string, album: string) => void;
+    onEditSong: (song: SongMeta) => void;
     onVideoModeChange?: (isVideo: boolean) => void;
     onVideoEnd?: () => void;
 };
@@ -60,12 +62,15 @@ export function FullPlayer({
     history = [],
     onQueueItemClick,
     onArtistClick,
+    onAlbumClick,
+    onEditSong,
     onVideoModeChange,
     onVideoEnd
 }: FullPlayerProps) {
     const [bgColor, setBgColor] = useState<string>("#1a1a1a");
     const [showInfo, setShowInfo] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
+    const [showArtistDestination, setShowArtistDestination] = useState(false);
     const [lyricsStyle, setLyricsStyle] = useState<'default' | 'handwriting' | 'typing'>('default');
 
     // View Mode: 'art', 'lyrics', 'queue', 'video'
@@ -167,20 +172,6 @@ export function FullPlayer({
     const scale = useTransform(y, [0, 300], [1, 0.9]);
     const controls = useAnimation();
 
-    // Auto-scroll to Up Next when queue view opens
-    const mobileQueueRef = useRef<HTMLHeadingElement>(null);
-    const desktopQueueRef = useRef<HTMLHeadingElement>(null);
-
-    useEffect(() => {
-        if (activeViewMode === 'queue' && history.length > 0) {
-            // Small delay to ensure render
-            setTimeout(() => {
-                mobileQueueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                desktopQueueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
-        }
-    }, [activeViewMode, history.length]);
-
     // --- Lazy ID3 Tag Loading ---
     const [lazyTags, setLazyTags] = useState<any>(null);
     useEffect(() => {
@@ -241,6 +232,22 @@ export function FullPlayer({
         }
     };
 
+    const handleVideoFullscreen = async () => {
+        const video = mobileVideoRef.current || desktopVideoRef.current;
+        if (!video) return;
+
+        try {
+            if (video.requestFullscreen) {
+                await video.requestFullscreen();
+            } else {
+                const webkitVideo = video as HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+                webkitVideo.webkitEnterFullscreen?.();
+            }
+        } catch (error) {
+            console.warn("Failed to enter fullscreen video", error);
+        }
+    };
+
     const handleVideoToggle = () => {
         if (hasVideo) {
             if (isVideoViewActive) {
@@ -279,11 +286,19 @@ export function FullPlayer({
     // Menu Action Handlers
     const handleArtistAction = () => {
         setShowMenu(false);
-        onClose(); // Close player first? Or keep it open but navigate background?
-        // Usually, navigating to artist page implies leaving the player view or minimizing it.
-        // Let's minimize it (close full player).
+        setShowArtistDestination(true);
+    };
+
+    const goToArtist = () => {
+        setShowArtistDestination(false);
         onClose();
         onArtistClick(artist);
+    };
+
+    const goToAlbum = () => {
+        setShowArtistDestination(false);
+        onClose();
+        onAlbumClick(artist, album);
     };
 
     return (
@@ -340,13 +355,41 @@ export function FullPlayer({
                             </div>
 
                             <button className="w-full text-left p-4 hover:bg-white/10 rounded-xl transition font-medium flex items-center gap-3" onClick={handleArtistAction}>
-                                <IconInfo size={20} /> Go to Artist
+                                <IconInfo size={20} /> アーティスト/アルバムへ移動
+                            </button>
+                            <button className="w-full text-left p-4 hover:bg-white/10 rounded-xl transition font-medium flex items-center gap-3" onClick={() => { setShowMenu(false); onEditSong(current); }}>
+                                <IconMusic size={20} /> タグを編集
                             </button>
                             <button className="w-full text-left p-4 hover:bg-white/10 rounded-xl transition font-medium flex items-center gap-3" onClick={() => { setShowMenu(false); }}>
                                 <IconListMusic size={20} /> Add to Playlist
                             </button>
 
                             <button className="w-full py-4 text-center font-bold text-red-500 mt-2 hover:bg-white/5 rounded-xl" onClick={() => setShowMenu(false)}>Cancel</button>
+                        </div>
+                    </div>
+                )}
+
+                {showArtistDestination && (
+                    <div
+                        className="absolute inset-0 z-[75] bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center animate-fade-in"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() => setShowArtistDestination(false)}
+                    >
+                        <div
+                            className="bg-[#1c1c1e] w-full md:w-96 rounded-t-2xl md:rounded-2xl p-4 space-y-2 mb-safe-bottom md:mb-0 shadow-2xl"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="p-4 border-b border-white/10">
+                                <h3 className="font-bold text-lg">移動先を選択</h3>
+                                <p className="text-sm text-gray-400 truncate mt-1">{artist} / {album}</p>
+                            </div>
+                            <button className="w-full text-left p-4 hover:bg-white/10 rounded-xl transition font-medium flex items-center gap-3" onClick={goToArtist}>
+                                <IconInfo size={20} /> アーティスト画面へ
+                            </button>
+                            <button className="w-full text-left p-4 hover:bg-white/10 rounded-xl transition font-medium flex items-center gap-3" onClick={goToAlbum}>
+                                <IconListMusic size={20} /> アルバム画面へ
+                            </button>
+                            <button className="w-full py-4 text-center font-bold text-red-500 mt-2 hover:bg-white/5 rounded-xl" onClick={() => setShowArtistDestination(false)}>Cancel</button>
                         </div>
                     </div>
                 )}
@@ -392,7 +435,14 @@ export function FullPlayer({
                         <div className="flex-1 text-center mx-4 min-w-0">
                             <div className="w-8 h-1 bg-white/30 rounded-full mx-auto mb-2" />
                             <div className="font-bold truncate text-sm leading-tight">{title}</div>
-                            <div className="text-xs text-white/60 truncate leading-tight">{artist}</div>
+                            <button
+                                type="button"
+                                className="text-xs text-white/60 truncate leading-tight hover:text-white hover:underline max-w-full mx-auto block"
+                                onClick={handleArtistAction}
+                                onPointerDown={(e) => e.stopPropagation()}
+                            >
+                                {artist}
+                            </button>
                         </div>
 
                         <button
@@ -408,7 +458,7 @@ export function FullPlayer({
                     <div className="flex-1 overflow-hidden relative flex flex-col justify-center min-h-0">
                         {isVideoViewActive ? (
                             <div
-                                className="max-w-full max-h-full bg-black flex items-center justify-center z-50 shadow-2xl mx-auto"
+                                className="relative max-w-full max-h-full bg-black flex items-center justify-center z-50 shadow-2xl mx-auto"
                                 style={{
                                     aspectRatio: videoFrameAspectRatio,
                                     width: videoFrameAspectRatio >= 1 ? '100%' : 'auto',
@@ -420,9 +470,9 @@ export function FullPlayer({
                                     key={`mobile-video-${current.path}`}
                                     src={offlineVideoUrl || `${API_BASE}${current.videoPath}`}
                                     className="w-full h-full object-contain"
+                                    controls
                                     playsInline
                                     autoPlay={isPlaying}
-                                    onClick={togglePlay}
                                     onTimeUpdate={(e) => setVideoCurrentTime((e.target as HTMLVideoElement).currentTime)}
                                     onLoadedMetadata={(e) => handleVideoLoadedMetadata(e.target as HTMLVideoElement)}
                                     onEnded={() => {
@@ -434,6 +484,17 @@ export function FullPlayer({
                                         setVideoActivePath(null);
                                     }}
                                 />
+                                <button
+                                    type="button"
+                                    className="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white backdrop-blur hover:bg-black/80"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleVideoFullscreen();
+                                    }}
+                                    onPointerDown={(e) => e.stopPropagation()}
+                                >
+                                    全画面
+                                </button>
                             </div>
                         ) : activeViewMode === 'art' ? (
                             // Large Artwork Mode
@@ -458,7 +519,7 @@ export function FullPlayer({
                                             <button onClick={() => setLyricsStyle('handwriting')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'handwriting' ? 'bg-white/30' : 'bg-white/10'}`}>Handwriting</button>
                                             <button onClick={() => setLyricsStyle('typing')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'typing' ? 'bg-white/30' : 'bg-white/10'}`}>Typing</button>
                                         </div>
-                                        <LyricsView rawLrc={rawLrc} currentTime={currentTime} scrollable={true} onLineClick={onTimeChange} style={lyricsStyle} />
+                                        <LyricsView rawLrc={rawLrc} currentTime={effectiveCurrentTime} scrollable={true} onLineClick={handleSeek} style={lyricsStyle} />
                                     </>
                                 ) : (
                                     <div className="space-y-4">
@@ -489,7 +550,7 @@ export function FullPlayer({
                                             </>
                                         )}
 
-                                        <h3 ref={mobileQueueRef} className="text-sm font-bold uppercase tracking-widest text-white/50 mb-4 sticky top-0 bg-transparent backdrop-blur-md py-2 z-10">Up Next</h3>
+                                        <h3 className="text-sm font-bold uppercase tracking-widest text-white/50 mb-4 sticky top-0 bg-transparent backdrop-blur-md py-2 z-10">Up Next</h3>
                                         {queue.length > 0 ? queue.map((song, idx) => (
                                             <div
                                                 key={idx}
@@ -629,8 +690,8 @@ export function FullPlayer({
                                     key={`desktop-video-${current.path}`}
                                     src={offlineVideoUrl || `${API_BASE}${current.videoPath}`}
                                     className="w-full h-full object-contain cursor-pointer"
+                                    controls
                                     autoPlay={isPlaying}
-                                    onClick={togglePlay}
                                     onTimeUpdate={(e) => setVideoCurrentTime((e.target as HTMLVideoElement).currentTime)}
                                     onLoadedMetadata={(e) => handleVideoLoadedMetadata(e.target as HTMLVideoElement)}
                                     onEnded={() => {
@@ -733,7 +794,7 @@ export function FullPlayer({
                                         <button onClick={() => setLyricsStyle('handwriting')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'handwriting' ? 'bg-white/30' : 'bg-white/10'}`}>Handwriting</button>
                                         <button onClick={() => setLyricsStyle('typing')} className={`px-2 py-1 text-xs rounded ${lyricsStyle === 'typing' ? 'bg-white/30' : 'bg-white/10'}`}>Typing</button>
                                     </div>
-                                    <LyricsView rawLrc={rawLrc} currentTime={currentTime} scrollable={true} onLineClick={onTimeChange} style={lyricsStyle} />
+                                    <LyricsView rawLrc={rawLrc} currentTime={effectiveCurrentTime} scrollable={true} onLineClick={handleSeek} style={lyricsStyle} />
                                 </>
                             ) : (
                                 <div className="space-y-4 px-4">
@@ -766,7 +827,7 @@ export function FullPlayer({
                                         </>
                                     )}
 
-                                    <h3 ref={desktopQueueRef} className="text-sm font-bold uppercase tracking-widest text-white/50 mb-6 sticky top-0 bg-transparent backdrop-blur-md py-4 z-10 border-b border-white/10">Up Next</h3>
+                                    <h3 className="text-sm font-bold uppercase tracking-widest text-white/50 mb-6 sticky top-0 bg-transparent backdrop-blur-md py-4 z-10 border-b border-white/10">Up Next</h3>
                                     {queue.length > 0 ? queue.map((song, idx) => (
                                         <div
                                             key={idx}

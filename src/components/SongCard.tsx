@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, memo } from "react";
 import { SongMeta } from "../types/music";
-import { IconMusic, IconPlay, IconPause, IconHeart, IconHeartFilled, IconMoreHorizontal, IconInfo, IconListMusic, IconTrash, IconCloudDownload, IconCheck } from "./Icons";
+import { IconMusic, IconPlay, IconPause, IconHeart, IconHeartFilled, IconMoreHorizontal, IconInfo, IconListMusic, IconTrash, IconCloudDownload, IconCheck, IconLibrary } from "./Icons";
 import { useDownloads } from "../hooks/useDownloads";
 import { downloadManager } from "../services/DownloadManager";
 import { platform } from "../utils/platform";
@@ -18,9 +18,10 @@ type SongCardProps = {
     onPlayNext?: (song: SongMeta) => void;
     onAddToPlaylist?: (song: SongMeta) => void;
     onDelete?: (song: SongMeta) => void;
+    onEdit?: (song: SongMeta) => void;
 };
 
-export const SongCard = memo(function SongCard({ song, isCurrent, isPlaying, isFavorite, onToggleFavorite, onClick, getAlbumArt, onArtistClick, onPlayNext, onAddToPlaylist, onDelete }: SongCardProps) {
+export const SongCard = memo(function SongCard({ song, isCurrent, isPlaying, isFavorite, onToggleFavorite, onClick, getAlbumArt, onArtistClick, onPlayNext, onAddToPlaylist, onDelete, onEdit }: SongCardProps) {
     const [showMenu, setShowMenu] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -218,6 +219,18 @@ export const SongCard = memo(function SongCard({ song, isCurrent, isPlaying, isF
                     >
                         <IconListMusic size={16} /> プレイリストに追加
                     </button>
+                    {onEdit && (
+                        <button
+                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-white hover:bg-[#333] transition text-left"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowMenu(false);
+                                onEdit(song);
+                            }}
+                        >
+                            <IconLibrary size={16} /> タグを編集
+                        </button>
+                    )}
                     {canDownload && (
                         <button
                             className={`w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-[#333] transition text-left ${downloaded ? 'text-green-400' : 'text-white'

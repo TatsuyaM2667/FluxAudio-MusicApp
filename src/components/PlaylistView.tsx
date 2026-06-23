@@ -18,6 +18,7 @@ interface PlaylistViewProps {
     onPlayNext: (song: SongMeta) => void;
     onAddToPlaylist: (song: SongMeta) => void;
     onDelete: (song: SongMeta) => void;
+    onEditSong: (song: SongMeta) => void;
 }
 
 export function PlaylistView({
@@ -31,7 +32,8 @@ export function PlaylistView({
     onToggleFavorite,
     onPlayNext,
     onAddToPlaylist,
-    onDelete
+    onDelete,
+    onEditSong
 }: PlaylistViewProps) {
     const playlistSongs = useMemo(() => {
         return playlist.songs
@@ -185,6 +187,7 @@ export function PlaylistView({
                                 onPlayNext={() => onPlayNext(song)}
                                 onAddToPlaylist={() => onAddToPlaylist(song)}
                                 onDelete={onDelete}
+                                onEdit={onEditSong}
                                 getAlbumArt={getAlbumArt}
                                 onArtistClick={onArtistClick}
                             />

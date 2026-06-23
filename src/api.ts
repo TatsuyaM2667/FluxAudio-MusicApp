@@ -73,6 +73,60 @@ export async function deleteSong(path: string): Promise<boolean> {
   }
 }
 
+export type SongMetadataUpdate = {
+  title?: string;
+  artist?: string;
+  album?: string;
+  year?: string;
+  genre?: string;
+};
+
+export async function updateSongMetadata(path: string, updates: SongMetadataUpdate): Promise<SongMetadataJson | null> {
+  try {
+    const res = await fetch(`${API_BASE}/song-metadata`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, updates })
+    });
+
+    if (!res.ok) {
+      console.error("Failed to update song metadata", await res.text());
+      return null;
+    }
+
+    localStorage.removeItem("music_index_cache_v3");
+    return await res.json();
+  } catch (e) {
+    console.error("Failed to update song metadata", e);
+    return null;
+  }
+}
+
+export async function uploadArtistImage(artist: string, file: File): Promise<string | null> {
+  try {
+    const formData = new FormData();
+    formData.append("artist", artist);
+    formData.append("image", file);
+
+    const res = await fetch(`${API_BASE}/artist-image`, {
+      method: "POST",
+      body: formData
+    });
+
+    if (!res.ok) {
+      console.error("Failed to upload artist image", await res.text());
+      return null;
+    }
+
+    localStorage.removeItem("music_index_cache_v3");
+    const data = await res.json();
+    return data.artistImage || null;
+  } catch (e) {
+    console.error("Failed to upload artist image", e);
+    return null;
+  }
+}
+
 // ==============================
 // Song List (music_index.json)
 // ==============================

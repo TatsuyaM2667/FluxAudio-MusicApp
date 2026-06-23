@@ -36,6 +36,8 @@ interface MainContentProps {
     onPlayNext: (song: SongMeta) => void;
     onAddToPlaylist: (song: SongMeta) => void;
     onDelete: (song: SongMeta) => void;
+    onEditSong: (song: SongMeta) => void;
+    onUploadArtistImage: (artist: string, file: File) => Promise<void>;
     getAlbumArt: (picture?: any) => string | null;
     setView: (view: string) => void;
     setSearchQuery: (query: string) => void;
@@ -70,6 +72,8 @@ export function MainContent({
     onPlayNext,
     onAddToPlaylist,
     onDelete,
+    onEditSong,
+    onUploadArtistImage,
     getAlbumArt,
     setView,
     setSearchQuery,
@@ -143,6 +147,8 @@ export function MainContent({
                 onAlbumClick={onAlbumClick}
                 isFavoriteArtist={isFavoriteArtist ? isFavoriteArtist(selectedArtist) : false}
                 onToggleFavoriteArtist={onToggleFavoriteArtist}
+                onUploadArtistImage={onUploadArtistImage}
+                onEditSong={onEditSong}
             />
         );
     }
@@ -202,6 +208,7 @@ export function MainContent({
                     onPlayNext={onPlayNext}
                     onAddToPlaylist={onAddToPlaylist}
                     onDelete={onDelete}
+                    onEditSong={onEditSong}
                 />
             );
         }
@@ -384,6 +391,7 @@ export function MainContent({
                                                 onPlayNext={() => onPlayNext(song)}
                                                 onAddToPlaylist={() => onAddToPlaylist(song)}
                                                 onDelete={onDelete}
+                                                onEdit={onEditSong}
                                                 getAlbumArt={getAlbumArt}
                                                 onArtistClick={onArtistClick}
                                             />
