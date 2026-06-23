@@ -103,6 +103,7 @@ export function FullPlayer({
     // Video time tracking — so seekbar syncs with video when in video mode
     const [videoCurrentTime, setVideoCurrentTime] = useState(0);
     const [videoDuration, setVideoDuration] = useState(0);
+    const [videoAspectRatio, setVideoAspectRatio] = useState<number | null>(null);
 
     // Effective time values: use video time when in video mode, audio time otherwise
     const effectiveCurrentTime = isVideoViewActive ? videoCurrentTime : currentTime;
@@ -136,6 +137,7 @@ export function FullPlayer({
         prevPathRef.current = current.path;
         setVideoCurrentTime(0);
         setVideoDuration(0);
+        setVideoAspectRatio(null);
         setOfflineVideoUrl(null); // Reset offline video url
     }
 
@@ -231,6 +233,14 @@ export function FullPlayer({
 
     // Video check
     const hasVideo = !!current.videoPath;
+    const videoFrameAspectRatio = videoAspectRatio || 16 / 9;
+    const handleVideoLoadedMetadata = (video: HTMLVideoElement) => {
+        setVideoDuration(video.duration);
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+            setVideoAspectRatio(video.videoWidth / video.videoHeight);
+        }
+    };
+
     const handleVideoToggle = () => {
         if (hasVideo) {
             if (isVideoViewActive) {
@@ -243,6 +253,7 @@ export function FullPlayer({
                 setVideoActivePath(current.path);
                 setVideoCurrentTime(0);
                 setVideoDuration(0);
+                setVideoAspectRatio(null);
             }
         }
     };
@@ -396,7 +407,14 @@ export function FullPlayer({
                     {/* Mobile Main Content */}
                     <div className="flex-1 overflow-hidden relative flex flex-col justify-center min-h-0">
                         {isVideoViewActive ? (
-                            <div className="w-full aspect-video bg-black flex items-center justify-center z-50 shadow-2xl">
+                            <div
+                                className="max-w-full max-h-full bg-black flex items-center justify-center z-50 shadow-2xl mx-auto"
+                                style={{
+                                    aspectRatio: videoFrameAspectRatio,
+                                    width: videoFrameAspectRatio >= 1 ? '100%' : 'auto',
+                                    height: videoFrameAspectRatio >= 1 ? 'auto' : '100%'
+                                }}
+                            >
                                 <video
                                     ref={mobileVideoRef}
                                     key={`mobile-video-${current.path}`}
@@ -406,7 +424,7 @@ export function FullPlayer({
                                     autoPlay={isPlaying}
                                     onClick={togglePlay}
                                     onTimeUpdate={(e) => setVideoCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                                    onLoadedMetadata={(e) => setVideoDuration((e.target as HTMLVideoElement).duration)}
+                                    onLoadedMetadata={(e) => handleVideoLoadedMetadata(e.target as HTMLVideoElement)}
                                     onEnded={() => {
                                         if (onVideoEnd) onVideoEnd();
                                     }}
@@ -592,11 +610,17 @@ export function FullPlayer({
                         <IconMoreHorizontal size={28} />
                     </button>
 
-                    <div className="w-1/2 h-full flex flex-col justify-center items-center lg:items-end min-h-0">
+                    <div className="w-1/2 h-full flex flex-col justify-center items-center min-h-0">
                         <div
                             key={`art-desktop-${current.path}`}
-                            className="aspect-square w-full shadow-[0_30px_60px_rgba(0,0,0,0.5)] rounded-lg overflow-hidden relative cursor-pointer group shrink-0"
-                            style={{ maxWidth: 'min(500px, calc(100vh - 400px))' }}
+                            className={`${isVideoViewActive ? 'w-full' : 'aspect-square w-full'} shadow-[0_30px_60px_rgba(0,0,0,0.5)] rounded-lg overflow-hidden relative cursor-pointer group shrink-0 bg-black`}
+                            style={isVideoViewActive
+                                ? {
+                                    aspectRatio: videoFrameAspectRatio,
+                                    maxWidth: videoFrameAspectRatio >= 1 ? 'min(720px, 48vw)' : 'min(420px, 36vw)',
+                                    maxHeight: 'calc(100vh - 320px)'
+                                }
+                                : { maxWidth: 'min(500px, calc(100vh - 400px))' }}
                             onClick={() => hasVideo ? handleVideoToggle() : setShowInfo(true)}
                         >
                             {isVideoViewActive ? (
@@ -604,11 +628,11 @@ export function FullPlayer({
                                     ref={desktopVideoRef}
                                     key={`desktop-video-${current.path}`}
                                     src={offlineVideoUrl || `${API_BASE}${current.videoPath}`}
-                                    className="w-full h-full object-cover cursor-pointer"
+                                    className="w-full h-full object-contain cursor-pointer"
                                     autoPlay={isPlaying}
                                     onClick={togglePlay}
                                     onTimeUpdate={(e) => setVideoCurrentTime((e.target as HTMLVideoElement).currentTime)}
-                                    onLoadedMetadata={(e) => setVideoDuration((e.target as HTMLVideoElement).duration)}
+                                    onLoadedMetadata={(e) => handleVideoLoadedMetadata(e.target as HTMLVideoElement)}
                                     onEnded={() => {
                                         if (onVideoEnd) onVideoEnd();
                                     }}

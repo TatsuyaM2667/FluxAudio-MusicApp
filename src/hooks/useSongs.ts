@@ -84,7 +84,8 @@ export function useSongs() {
                         loaded: !!title,
                         lrcPath: item.lrc || item.lrcPath || null,
                         videoPath: item.video || item.videoPath || undefined,
-                        artistImage: item.artistImage
+                        artistImage: item.artistImage,
+                        date: item.date || tags.date || 0
                     };
                 });
 

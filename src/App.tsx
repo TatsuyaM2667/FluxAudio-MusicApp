@@ -509,12 +509,14 @@ function App() {
             searchQuery={searchQuery}
             loading={songsLoading}
             displaySongs={displaySongs}
+            playHistoryVersion={history.length}
             current={current}
             isPlaying={isPlaying}
             onPlaySong={handlePlaySong}
             onArtistClick={handleArtistClick}
             onAlbumClick={handleAlbumClick}
             onPlaylistClick={(id: string) => setView(`playlist-${id}`)}
+            onCreatePlaylistClick={() => openPlaylistModal(null)}
             onToggleFavorite={toggleFavorite}
             onPlayNext={handlePlayNext}
             onAddToPlaylist={openPlaylistModal}

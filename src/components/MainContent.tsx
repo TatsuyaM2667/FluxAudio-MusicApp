@@ -11,8 +11,9 @@ import { getPageTitle } from '../hooks/useAlbumArt';
 import { platform } from '../utils/platform';
 import { downloadManager } from '../services/DownloadManager';
 import { useDownloads } from '../hooks/useDownloads';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useOffline } from '../hooks/useOffline';
+import { getSongPlayCounts } from '../utils/playHistory';
 
 interface MainContentProps {
     view: string;
@@ -24,11 +25,13 @@ interface MainContentProps {
     searchQuery: string;
     loading: boolean;
     displaySongs: SongMeta[];
+    playHistoryVersion?: number;
 
     onPlaySong: (song: SongMeta, context?: SongMeta[]) => void;
     onArtistClick: (artist: string) => void;
     onAlbumClick: (artist: string, album: string) => void;
     onPlaylistClick: (id: string) => void;
+    onCreatePlaylistClick: () => void;
     onToggleFavorite: (path: string) => void;
     onPlayNext: (song: SongMeta) => void;
     onAddToPlaylist: (song: SongMeta) => void;
@@ -57,10 +60,12 @@ export function MainContent({
     searchQuery,
     loading,
     displaySongs,
+    playHistoryVersion = 0,
     onPlaySong,
     onArtistClick,
     onAlbumClick,
     onPlaylistClick,
+    onCreatePlaylistClick,
     onToggleFavorite,
     onPlayNext,
     onAddToPlaylist,
@@ -83,6 +88,18 @@ export function MainContent({
     const isOffline = useOffline();
 
     const canDownload = platform.isDownloadSupported();
+    const songPlayCounts = useMemo(() => getSongPlayCounts('all'), [playHistoryVersion, songs.length]);
+
+    const sortByPlayCount = useCallback((targetSongs: SongMeta[]) => {
+        return targetSongs
+            .map((song, index) => ({ song, index, count: songPlayCounts.get(song.path) || 0 }))
+            .sort((a, b) => (b.count - a.count) || (a.index - b.index))
+            .map(item => item.song);
+    }, [songPlayCounts]);
+
+    const sortByR2AddedDate = useCallback((targetSongs: SongMeta[]) => {
+        return [...targetSongs].sort((a, b) => (b.date || 0) - (a.date || 0));
+    }, []);
 
     const handleDownloadAll = async (targetSongs: SongMeta[]) => {
         if (downloading) return;
@@ -261,10 +278,12 @@ export function MainContent({
                         playlists={playlists}
                         onAlbumClick={onAlbumClick}
                         onPlaylistClick={onPlaylistClick}
+                        onCreatePlaylistClick={onCreatePlaylistClick}
                         getAlbumArt={getAlbumArt}
                         favoriteArtists={favoriteArtists}
                         favoriteAlbums={favoriteAlbums}
                         onArtistClick={onArtistClick}
+                        playHistoryVersion={playHistoryVersion}
                     />
                 ) : view === 'mypage' ? (
                     <MyPage
@@ -340,11 +359,9 @@ export function MainContent({
                             {(() => {
                                 // Calculate the actual song list being displayed for proper context
                                 const songsToDisplay = view === 'new_arrivals'
-                                    ? (isOffline
-                                        ? songs.filter(s => isDownloaded(s.path)).sort((a, b) => (b.date || 0) - (a.date || 0)).slice(0, 10)
-                                        : [...songs].sort((a, b) => (b.date || 0) - (a.date || 0)).slice(0, 10))
-                                    : (isOffline && view === 'home'
-                                        ? displaySongs.filter(s => isDownloaded(s.path))
+                                    ? sortByR2AddedDate(isOffline ? songs.filter(s => isDownloaded(s.path)) : songs).slice(0, 10)
+                                    : (view === 'home'
+                                        ? sortByPlayCount(isOffline ? displaySongs.filter(s => isDownloaded(s.path)) : displaySongs)
                                         : displaySongs);
 
                                 const visibleSongs = songsToDisplay.slice(0, visibleCount);

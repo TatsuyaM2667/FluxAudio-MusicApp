@@ -1,23 +1,26 @@
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { SongMeta, Playlist } from '../types/music';
-import { IconLibrary, IconListMusic, IconStar, IconCloudDownload } from './Icons';
+import { IconLibrary, IconListMusic, IconStar, IconCloudDownload, IconPlus } from './Icons';
 import { API_BASE } from '../config';
 import { useDownloads } from '../hooks/useDownloads';
 import { platform } from '../utils/platform';
 import { splitArtists } from '../utils/searchUtils';
+import { getArtistPlayCounts } from '../utils/playHistory';
 
 type LibraryViewProps = {
     songs: SongMeta[];
     playlists: Playlist[];
     onAlbumClick: (artist: string, album: string) => void;
     onPlaylistClick: (id: string) => void;
+    onCreatePlaylistClick?: () => void;
     getAlbumArt: (picture?: any) => string | null;
     favoriteArtists?: string[];
     favoriteAlbums?: { artist: string, album: string }[];
     onArtistClick?: (artist: string) => void;
+    playHistoryVersion?: number;
 };
 
-export function LibraryView({ songs, playlists, onAlbumClick, onPlaylistClick, getAlbumArt, favoriteArtists = [], favoriteAlbums = [], onArtistClick }: LibraryViewProps) {
+export function LibraryView({ songs, playlists, onAlbumClick, onPlaylistClick, onCreatePlaylistClick, getAlbumArt, favoriteArtists = [], favoriteAlbums = [], onArtistClick, playHistoryVersion = 0 }: LibraryViewProps) {
     const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
     const [visibleArtistCount, setVisibleArtistCount] = useState(40);
     const [visibleAlbumCount, setVisibleAlbumCount] = useState(40);
@@ -62,6 +65,15 @@ export function LibraryView({ songs, playlists, onAlbumClick, onPlaylistClick, g
         return map;
     }, [songs]);
 
+    const artistPlayCounts = useMemo(() => getArtistPlayCounts('all'), [playHistoryVersion, songs.length]);
+
+    const sortArtistsByPlayCount = useCallback((targetArtists: string[]) => {
+        return targetArtists
+            .map((artist, index) => ({ artist, index, count: artistPlayCounts.get(artist) || 0 }))
+            .sort((a, b) => (b.count - a.count) || a.artist.localeCompare(b.artist, 'ja') || (a.index - b.index))
+            .map(item => item.artist);
+    }, [artistPlayCounts]);
+
     const artists = useMemo(() => {
         const artistMap = new Map<string, { name: string; image: string | null }>();
 
@@ -78,8 +90,16 @@ export function LibraryView({ songs, playlists, onAlbumClick, onPlaylistClick, g
             });
         });
 
-        return Array.from(artistMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-    }, [songs]);
+        return Array.from(artistMap.values()).sort((a, b) => {
+            const playCountDiff = (artistPlayCounts.get(b.name) || 0) - (artistPlayCounts.get(a.name) || 0);
+            return playCountDiff || a.name.localeCompare(b.name, 'ja');
+        });
+    }, [artistPlayCounts, songs]);
+
+    const sortedFavoriteArtists = useMemo(
+        () => sortArtistsByPlayCount(favoriteArtists),
+        [favoriteArtists, sortArtistsByPlayCount]
+    );
 
     const artistImageByName = useMemo(() => {
         const map = new Map<string, string | null>();
@@ -155,7 +175,7 @@ export function LibraryView({ songs, playlists, onAlbumClick, onPlaylistClick, g
                         <h2 className="text-2xl font-bold text-black dark:text-white tracking-tight mb-6">お気に入りアーティスト</h2>
                         {favoriteArtists.length > 0 ? (
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                                {favoriteArtists.map(artist => renderArtistCard(artist))}
+                                {sortedFavoriteArtists.map(artist => renderArtistCard(artist))}
                             </div>
                         ) : (
                             <div className="text-gray-500">お気に入りのアーティストはいません。</div>
@@ -201,10 +221,28 @@ export function LibraryView({ songs, playlists, onAlbumClick, onPlaylistClick, g
                 </div>
             ) : (
                 <>
-                    {(playlists.length > 0 || (platform.isDownloadSupported() && downloadedSongs.length > 0)) && (
+                    {(onCreatePlaylistClick || playlists.length > 0 || (platform.isDownloadSupported() && downloadedSongs.length > 0)) && (
                         <div className="mb-8">
                             <h2 className="text-2xl md:text-3xl font-bold text-black dark:text-white tracking-tight mb-6">プレイリスト</h2>
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+                                {onCreatePlaylistClick && (
+                                    <button
+                                        type="button"
+                                        className="flex flex-col gap-2 cursor-pointer group min-w-0 text-left"
+                                        onClick={onCreatePlaylistClick}
+                                    >
+                                        <div className="aspect-square w-full bg-gray-100 dark:bg-white/10 rounded-lg overflow-hidden shadow-md transition-all duration-300 group-hover:shadow-xl relative flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-white/20 group-hover:border-green-500">
+                                            <div className="w-14 h-14 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-105">
+                                                <IconPlus size={28} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="font-bold truncate text-sm">新規プレイリスト</div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">Create playlist</div>
+                                        </div>
+                                    </button>
+                                )}
+
                                 {platform.isDownloadSupported() && downloadedSongs.length > 0 && (
                                     <div
                                         className="flex flex-col gap-2 cursor-pointer group min-w-0"

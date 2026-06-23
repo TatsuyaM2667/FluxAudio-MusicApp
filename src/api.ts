@@ -117,7 +117,8 @@ export async function fetchSongs(): Promise<SongMetadataJson[]> {
         },
         lrc: item.lrc || null,
         video: item.video || null,
-        artistImage: item.artistImage || null
+        artistImage: item.artistImage || null,
+        date: item.date || (item.tags && item.tags.date) || 0
       })) : [];
 
       // Clean up old caches

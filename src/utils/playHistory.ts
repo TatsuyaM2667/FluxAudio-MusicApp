@@ -1,4 +1,5 @@
 import { SongMeta } from "../types/music";
+import { splitArtists } from "./searchUtils";
 
 export interface PlayRecord {
     path: string;
@@ -101,4 +102,35 @@ export function getTopArtists(period: 'all' | 'month' = 'all', limit: number = 2
         .map(([artist, count]) => ({ artist, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, limit);
+}
+
+export function getSongPlayCounts(period: 'all' | 'month' = 'all'): Map<string, number> {
+    const history = getPlayHistory();
+    const now = Date.now();
+    const oneMonthMs = 30 * 24 * 60 * 60 * 1000;
+    const counts = new Map<string, number>();
+
+    history.forEach(record => {
+        if (period === 'month' && (now - record.timestamp) >= oneMonthMs) return;
+        counts.set(record.path, (counts.get(record.path) || 0) + 1);
+    });
+
+    return counts;
+}
+
+export function getArtistPlayCounts(period: 'all' | 'month' = 'all'): Map<string, number> {
+    const history = getPlayHistory();
+    const now = Date.now();
+    const oneMonthMs = 30 * 24 * 60 * 60 * 1000;
+    const counts = new Map<string, number>();
+
+    history.forEach(record => {
+        if (period === 'month' && (now - record.timestamp) >= oneMonthMs) return;
+
+        splitArtists(record.artist).forEach(artist => {
+            counts.set(artist, (counts.get(artist) || 0) + 1);
+        });
+    });
+
+    return counts;
 }
